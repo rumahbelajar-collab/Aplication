@@ -1,0 +1,262 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", var(--font-sans);
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Sudut Grid & Card - Disesuaikan agar tidak terlalu tumpul (Crisp & Modern) */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-3xl: 24px;
+  --radius-4xl: 32px;
+
+  /* Vibrant Blue menyesuaikan warna utama di referensi UI TravelGo */
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-200: #bfdbfe;
+  --color-brand-300: #93c5fd;
+  --color-brand-400: #60a5fa;
+  --color-brand-500: #007bff; /* Primary Vibrant Blue */
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+  --color-brand-800: #1e40af;
+  --color-brand-900: #1e3a8a;
+  --color-brand-950: #172554;
+  
+  --color-dana-blue: #007bff;
+  --color-brimo-blue: #1d4ed8;
+
+  /* Harmonize Indigo class directly to our brand-blue for uniform corporate branding */
+  --color-indigo-50: var(--color-brand-50);
+  --color-indigo-100: var(--color-brand-100);
+  --color-indigo-200: var(--color-brand-200);
+  --color-indigo-300: var(--color-brand-300);
+  --color-indigo-400: var(--color-brand-400);
+  --color-indigo-500: var(--color-brand-500);
+  --color-indigo-600: var(--color-brand-600);
+  --color-indigo-700: var(--color-brand-700);
+  --color-indigo-800: var(--color-brand-800);
+  --color-indigo-900: var(--color-brand-900);
+  --color-indigo-950: var(--color-brand-950);
+
+  /* Premium Flat Amber Colors */
+  --color-amber-50: #fffbeb;
+  --color-amber-100: #fef3c7;
+  --color-amber-200: #fde68a;
+  --color-amber-300: #fcd34d;
+  --color-amber-400: #fbbf24;
+  --color-amber-500: #f59e0b;
+  --color-amber-600: #d97706;
+  --color-amber-700: #b45309;
+  --color-amber-800: #92400e;
+
+  /* Premium Flat Emerald Colors */
+  --color-emerald-50: #ecfdf5;
+  --color-emerald-100: #d1fae5;
+  --color-emerald-200: #a7f3d0;
+  --color-emerald-500: #10b981;
+  --color-emerald-600: #059669;
+  --color-emerald-700: #047857;
+
+  /* Premium Flat Rose Colors */
+  --color-rose-50: #fff1f2;
+  --color-rose-100: #ffe4e6;
+  --color-rose-200: #fecdd3;
+  --color-rose-500: #f43f5e;
+  --color-rose-600: #e11d48;
+  --color-rose-700: #be123c;
+}
+
+@layer base {
+  body {
+    @apply bg-[#f4f7fb] text-slate-800 font-sans antialiased selection:bg-brand-200 selection:text-brand-800;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Hide standard scrollbars for a clean PWA/App appearance on web */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Custom animation classes for native app feel */
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Hide mobile bottom nav when any modal is open to prevent overlap */
+body:has(.fixed.inset-0) .mobile-bottom-nav {
+  display: none !important;
+}
+
+/* Overall UI Element Scale-up & Adaptive Design for ALL Devices */
+html {
+  font-size: 112%; 
+}
+
+/* 📱 HP / MOBILE PORTRAIT (Targeting ~360px Width) */
+@media (max-width: 480px) {
+  html {
+    font-size: 95% !important; 
+  }
+  
+  div[class*="p-4"], .p-4 { padding: 0.85rem !important; }
+  div[class*="p-5"], .p-5 { padding: 1rem !important; }
+  div[class*="p-6"], .p-6 { padding: 1.15rem !important; }
+  
+  [class*="grid-cols-"] { gap: 0.75rem !important; }
+
+  input, select, textarea { min-height: 40px !important; }
+
+  button:not(.inline-flex):not([class*="px-2"]):not([class*="p-1"]) {
+    padding-top: 0.55rem !important;
+    padding-bottom: 0.55rem !important;
+  }
+
+  svg, .lucide { transform: scale(1.0) !important; }
+  button svg, nav svg, a svg, .mobile-bottom-nav svg, div[class*="rounded-"] svg {
+    transform: scale(1.0) !important;
+  }
+}
+
+/* 📟 TABLET VIEWPORT (Targeting ~768px Width) */
+@media (min-width: 481px) and (max-width: 1024px) {
+  html { font-size: 108% !important; }
+  
+  div[class*="p-4"], .p-4 { padding: 1.15rem !important; }
+  div[class*="p-5"], .p-5 { padding: 1.25rem !important; }
+  div[class*="p-6"], .p-6 { padding: 1.35rem !important; }
+  
+  [class*="grid-cols-"] { gap: 1rem !important; }
+  input, select, textarea { min-height: 44px !important; }
+  svg, .lucide { transform: scale(1.1) !important; }
+}
+
+/* 💻 COMPUTER / DESKTOP VIEWPORT (Targeting 1280px to 1920px Width) */
+@media (min-width: 1280px) {
+  html { font-size: 125% !important; }
+  
+  div[class*="p-4"], .p-4 { padding: 1.5rem !important; }
+  div[class*="p-5"], .p-5 { padding: 1.75rem !important; }
+  div[class*="p-6"], .p-6 { padding: 2rem !important; }
+  
+  [class*="grid-cols-"] { gap: 1.5rem !important; }
+  input, select, textarea { min-height: 48px !important; }
+}
+
+/* Ensure absolute pixel-based custom text classes are proportionally scaled only on larger devices */
+@media (min-width: 769px) {
+  [class*="text-[9px]"] { font-size: 11.5px !important; }
+  [class*="text-[10px]"] { font-size: 13px !important; }
+  [class*="text-[10.5px]"] { font-size: 13.5px !important; }
+  [class*="text-[11px]"] { font-size: 14px !important; }
+  
+  svg, .lucide {
+    transform: scale(1.22);
+    transform-origin: center;
+    display: inline-block;
+    transition: transform 0.2s ease-in-out;
+  }
+
+  button svg, nav svg, a svg, .mobile-bottom-nav svg, div[class*="rounded-"] svg {
+    transform: scale(1.25) !important;
+  }
+
+  button:hover svg, nav button:hover svg, .mobile-bottom-nav button:hover svg {
+    transform: scale(1.35) !important;
+  }
+  
+  button:not(.inline-flex):not([class*="px-2"]):not([class*="p-1"]) {
+    padding-top: 0.85rem !important;
+    padding-bottom: 0.85rem !important;
+  }
+}
+
+/* 🎯 MODERN UI/UX OVERRIDES - SELARAS DENGAN REFERENSI TRAVELGO */
+
+/* Modern Card Layouts - Menghapus border keras, mengganti dengan shadow lembut */
+div[class*="bg-white"], 
+div[class*="bg-white/"] {
+  border: none !important;
+  box-shadow: 0px 8px 24px rgba(149, 157, 165, 0.12) !important; /* Soft floating shadow */
+}
+
+/* Modern Fields and Inputs */
+input, select, textarea {
+  border: 1px solid #e2e8f0 !important;
+  background-color: #ffffff !important;
+  color: #0f172a !important; 
+  border-radius: var(--radius-md) !important;
+  transition: all 0.2s ease-in-out !important;
+  box-shadow: none !important;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--color-brand-500) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 4px rgba(0, 123, 255, 0.1) !important;
+}
+
+/* Custom Interactive Buttons */
+button {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.05) !important; /* Soft button shadow */
+}
+
+button:active {
+  transform: scale(0.97) !important; /* Efek tekan membal (bouncy) yang modern */
+}
+
+/* Navigation Tabs & Sidebar Active State - Soft Indicator */
+nav button[class*="text-brand-600"] {
+  border-bottom: 2px solid var(--color-brand-500) !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Table Design and Alignment */
+table {
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+}
+
+th {
+  background-color: #f8fafc !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  color: #64748b !important;
+  font-weight: 600 !important;
+}
+
+td {
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+
+tr:hover td {
+  background-color: #f8fafc !important;
+}

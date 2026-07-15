@@ -1,0 +1,6 @@
+{
+  "name": "Rumah Belajar",
+  "description": "Sistem Informasi Manajemen Operasional, Administrasi, dan Keuangan Bimbingan Belajar Privat.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
