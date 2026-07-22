@@ -21,11 +21,11 @@ export default function DateRangeFilter({
 
   const presets = [
     { value: "semua", label: "Semua Waktu" },
-    { value: "hari", label: "Hari Ini" },
-    { value: "minggu", label: "Minggu Ini" },
-    { value: "bulan", label: "Bulan Ini" },
-    { value: "tahun", label: "Tahun Ini" },
-    { value: "custom", label: "Rentang Kustom" }
+    { value: "hari", label: "Hari" },
+    { value: "minggu", label: "Minggu" },
+    { value: "bulan", label: "Bulan" },
+    { value: "tahun", label: "Tahun" },
+    { value: "custom", label: "Rentang" }
   ];
 
   const handlePresetChange = (type: DateRangePreset) => {

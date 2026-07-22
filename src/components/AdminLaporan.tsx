@@ -36,7 +36,9 @@ import {
   downloadRekapTagihanSiswaPDF, 
   downloadRekapHonorTutorPDF, 
   downloadRekapTitipanTutorPDF,
-  downloadRekapAbsensiPDF
+  downloadRekapAbsensiPDF,
+  downloadDaftarJadwalPDF,
+  downloadRekapBukuKasPDF
 } from "../lib/pdfGenerator";
 import DateRangeFilter, { DateRangePreset } from "./DateRangeFilter";
 
@@ -244,7 +246,7 @@ export default function AdminLaporan({ db, onUpdateDb, defaultMainTab = "pdf" }:
   };
 
   return (
-    <div id="admin-laporan-container" className="px-2 py-4 pb-24 space-y-4">
+    <div id="admin-laporan-container" className="px-4 py-4 pb-24 space-y-4">
       
       {/* THREE PRIMARY TABS (DANA STYLE RAIL) */}
       <div className="grid grid-cols-3 bg-white p-1 rounded-lg border border-slate-100 shadow-3xs shrink-0">
@@ -313,6 +315,7 @@ export default function AdminLaporan({ db, onUpdateDb, defaultMainTab = "pdf" }:
       {activeMainTab === "pdf" && (
         <div className="space-y-4 animate-fade-in">
           <h4 className="text-xs font-bold text-slate-700 px-2">Pusat Ekspor Dokumen</h4>
+
           <div className="space-y-3.5">
             {/* Laba Rugi */}
             <div className="bg-white p-5 rounded-lg border border-slate-100 shadow-xs hover:border-brand-300 transition-all flex items-center justify-between">
@@ -336,8 +339,30 @@ export default function AdminLaporan({ db, onUpdateDb, defaultMainTab = "pdf" }:
               </button>
             </div>
 
+            {/* Buku Kas Lembaga */}
+            <div className="bg-white p-5 rounded-lg border border-slate-100 shadow-xs hover:border-brand-300 transition-all flex items-center justify-between">
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-11 h-11 bg-teal-50 text-teal-600 rounded-2xl flex items-center justify-center shrink-0 border border-teal-100/50">
+                  <Wallet size={20} />
+                </div>
+                <div className="min-w-0">
+                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide">Rekapitulasi Buku Kas Lembaga</h4>
+                  <p className="text-[10.5px] text-slate-400 mt-0.5 truncate font-medium">Laporan rincian mutasi kas masuk, keluar, dan akumulasi saldo akhir</p>
+                  <span className="inline-block mt-1 text-[9px] font-bold bg-slate-50 text-slate-500 px-2 py-0.5 rounded-full font-mono">
+                    {pText}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => downloadRekapBukuKasPDF(db, pText, boundsStart, boundsEnd)}
+                className="p-3 bg-brand-50 hover:bg-brand-100 text-brand-600 rounded-xl transition-all cursor-pointer border border-brand-100 active:scale-95"
+              >
+                <Download size={16} />
+              </button>
+            </div>
+
             {/* Rekap Tagihan */}
-            <div className="bg-white p-4 rounded-lg border border-slate-100 shadow-xs hover:border-brand-300 transition-all flex items-center justify-between">
+            <div className="bg-white p-5 rounded-lg border border-slate-100 shadow-xs hover:border-brand-300 transition-all flex items-center justify-between">
               <div className="flex items-center gap-3.5 min-w-0">
                 <div className="w-11 h-11 bg-blue-50 text-brand-600 rounded-2xl flex items-center justify-center shrink-0 border border-brand-100/50">
                   <Users size={20} />
@@ -359,7 +384,7 @@ export default function AdminLaporan({ db, onUpdateDb, defaultMainTab = "pdf" }:
             </div>
 
             {/* Rekap Honor */}
-            <div className="bg-white p-4 rounded-lg border border-slate-100 shadow-xs hover:border-brand-300 transition-all flex items-center justify-between">
+            <div className="bg-white p-5 rounded-lg border border-slate-100 shadow-xs hover:border-brand-300 transition-all flex items-center justify-between">
               <div className="flex items-center gap-3.5 min-w-0">
                 <div className="w-11 h-11 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shrink-0 border border-indigo-100/50">
                   <GraduationCap size={20} />
@@ -381,7 +406,7 @@ export default function AdminLaporan({ db, onUpdateDb, defaultMainTab = "pdf" }:
             </div>
 
             {/* Rekap Titipan */}
-            <div className="bg-white p-4 rounded-lg border border-slate-100 shadow-xs hover:border-brand-300 transition-all flex items-center justify-between">
+            <div className="bg-white p-5 rounded-lg border border-slate-100 shadow-xs hover:border-brand-300 transition-all flex items-center justify-between">
               <div className="flex items-center gap-3.5 min-w-0">
                 <div className="w-11 h-11 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center shrink-0 border border-amber-100/50">
                   <Wallet size={20} />
@@ -403,7 +428,7 @@ export default function AdminLaporan({ db, onUpdateDb, defaultMainTab = "pdf" }:
             </div>
 
             {/* Rekap Absensi */}
-            <div className="bg-white p-4 rounded-lg border border-slate-100 shadow-xs hover:border-brand-300 transition-all flex items-center justify-between">
+            <div className="bg-white p-5 rounded-lg border border-slate-100 shadow-xs hover:border-brand-300 transition-all flex items-center justify-between">
               <div className="flex items-center gap-3.5 min-w-0">
                 <div className="w-11 h-11 bg-slate-50 text-slate-600 border border-slate-200 rounded-2xl flex items-center justify-center shrink-0">
                   <Calendar size={20} />
@@ -423,9 +448,32 @@ export default function AdminLaporan({ db, onUpdateDb, defaultMainTab = "pdf" }:
                 <Download size={16} />
               </button>
             </div>
+
+            {/* Daftar Jadwal Bimbingan */}
+            <div className="bg-white p-5 rounded-lg border border-slate-100 shadow-xs hover:border-brand-300 transition-all flex items-center justify-between">
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-11 h-11 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center shrink-0 border border-rose-100/50">
+                  <Calendar size={20} />
+                </div>
+                <div className="min-w-0">
+                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide">Daftar Jadwal Bimbingan</h4>
+                  <p className="text-[10.5px] text-slate-400 mt-0.5 truncate font-medium">Seluruh jadwal pertemuan aktif tutor & siswa</p>
+                  <span className="inline-block mt-1 text-[9px] font-bold bg-slate-50 text-slate-500 px-2 py-0.5 rounded-full font-mono">
+                    Semua Periode
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => downloadDaftarJadwalPDF(db.schedules || [], db.tutors || [])}
+                className="p-3 bg-brand-50 hover:bg-brand-100 text-brand-600 rounded-xl transition-all cursor-pointer border border-brand-100 active:scale-95"
+              >
+                <Download size={16} />
+              </button>
+            </div>
           </div>
         </div>
       )}
+
 
       {/* ==========================================================
           TAB 1.5: ABSENSI LIST & MANAGEMENT (CONNECTED TO SUPABASE)
@@ -433,74 +481,69 @@ export default function AdminLaporan({ db, onUpdateDb, defaultMainTab = "pdf" }:
       {activeMainTab === "absensi" && (
         <div className="space-y-4 animate-fade-in">
           {/* Summary Stats Box */}
-          <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-3xs space-y-4">
-            
-            {/* 1. RINGKASAN STATISTIK (Grid 4 Kolom) */}
-            <div className="grid grid-cols-4 gap-2">
-              {/* Total Sesi */}
-              <div className="text-center p-2 rounded-xl bg-slate-50/80 border border-slate-100/50">
-                <span className="text-[9px] font-bold text-slate-400 block uppercase leading-none mb-1">Sesi</span>
-                <span className="text-xs font-black text-slate-800 font-mono">
-                  {unifiedAbsensiList.filter(r => (!boundsStart || r.tanggal >= boundsStart) && (!boundsEnd || r.tanggal <= boundsEnd)).length}
-                </span>
-              </div>
-              
-              {/* Disetujui */}
-              <div className="text-center p-2 rounded-xl bg-emerald-50 border border-emerald-100/30">
-                <span className="text-[9px] font-bold text-emerald-600 block uppercase leading-none mb-1">Setuju</span>
-                <span className="text-xs font-black text-emerald-700 font-mono">
-                  {unifiedAbsensiList.filter(r => r.status === "setuju" && (!boundsStart || r.tanggal >= boundsStart) && (!boundsEnd || r.tanggal <= boundsEnd)).length}
-                </span>
-              </div>
-              
-              {/* Pending */}
-              <div className="text-center p-2 rounded-xl bg-amber-50 border border-amber-100/30">
-                <span className="text-[9px] font-bold text-amber-600 block uppercase leading-none mb-1">Pending</span>
-                <span className="text-xs font-black text-amber-700 font-mono">
-                  {unifiedAbsensiList.filter(r => r.status === "pending" && (!boundsStart || r.tanggal >= boundsStart) && (!boundsEnd || r.tanggal <= boundsEnd)).length}
-                </span>
-              </div>
-              
-              {/* Ditolak */}
-              <div className="text-center p-2 rounded-xl bg-rose-50 border border-rose-100/30">
-                <span className="text-[9px] font-bold text-rose-600 block uppercase leading-none mb-1">Tolak</span>
-                <span className="text-xs font-black text-rose-700 font-mono">
-                  {unifiedAbsensiList.filter(r => r.status === "tolak" && (!boundsStart || r.tanggal >= boundsStart) && (!boundsEnd || r.tanggal <= boundsEnd)).length}
-                </span>
-              </div>
-            </div>
+          <div className="bg-white p-4 rounded-lg border border-slate-100 shadow-3xs space-y-4">             
+            <div className="grid grid-cols-4 gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200/40">
+              {(["semua", "setuju", "pending", "tolak"] as const).map((status) => {
+                // 1. Hitung jumlah data berdasarkan status secara dinamis
+                const count = unifiedAbsensiList.filter(
+                  (r) =>
+                    (status === "semua" || r.status === status) &&
+                    (!boundsStart || r.tanggal >= boundsStart) &&
+                    (!boundsEnd || r.tanggal <= boundsEnd)
+                ).length;
 
-            {/* 2. FILTER & SEARCH BAR (Disatukan langsung di bawah statistik dengan pembatas tipis) */}
-            <div className="border-t border-slate-50 pt-3.5 space-y-2.5">
-              {/* Kolom Input Pencarian */}
+                // 2. Tentukan label teks
+                const label =
+                  status === "semua" ? "Sesi" :
+                  status === "setuju" ? "Setuju" :
+                  status === "tolak" ? "Tolak" : "Pending";
+
+                // 3. Tentukan warna berdasarkan status jika sedang aktif (dipilih)
+                const activeColor =
+                  status === "setuju" ? "text-emerald-600 bg-emerald-50 border-emerald-100" :
+                  status === "pending" ? "text-amber-600 bg-amber-50 border-amber-100" :
+                  status === "tolak" ? "text-rose-600 bg-rose-50 border-rose-100" :
+                  "text-brand-600 bg-white border-slate-200"; // Warna default untuk "Semua"
+
+                const isSelected = absensiStatusFilter === status;
+
+                return (
+                  <button
+                    key={status}
+                    onClick={() => setAbsensiStatusFilter(status)}
+                    className={`flex flex-col items-center justify-center p-2 rounded-lg cursor-pointer transition-all border ${
+                      isSelected
+                        ? `${activeColor} shadow-3xs`
+                        : "bg-transparent border-transparent text-slate-500 hover:bg-slate-200/50 hover:text-slate-700"
+                    }`}
+                  >
+                    <span
+                      className={`text-[9px] font-bold uppercase leading-none mb-1 ${
+                        isSelected ? "" : "text-slate-400"
+                      }`}
+                    >
+                      {label}
+                    </span>
+                    <span
+                      className={`text-xs font-black font-mono ${
+                        isSelected ? "" : "text-slate-600"
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
               <div className="relative">
                 <input
                   type="text"
                   placeholder="Cari nama tutor, siswa, program..."
                   value={absensiSearch}
-                  onChange={(e) => setFormSearch ? setFormSearch(e.target.value) : setAbsensiSearch(e.target.value)}
-                  className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl focus:outline-none focus:border-slate-300 transition-colors placeholder:text-slate-400"
+                  onChange={(e) => setAbsensiSearch(e.target.value)}
+                  className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none placeholder:text-slate-400"
                 />
-              </div>
-
-              {/* Segmented Control / Tab Filter Status */}
-              <div className="flex gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/40">
-                {(["semua", "pending", "setuju", "tolak"] as const).map((status) => (
-                  <button
-                    key={status}
-                    onClick={() => setAbsensiStatusFilter(status)}
-                    className={`flex-1 py-1 text-[10px] font-bold rounded-lg cursor-pointer transition-all capitalize ${
-                      absensiStatusFilter === status 
-                        ? "bg-white text-brand-700 shadow-3xs" 
-                        : "text-slate-500 hover:text-slate-700"
-                    }`}
-                  >
-                    {status === "semua" ? "Semua" : status === "setuju" ? "Disetujui" : status === "tolak" ? "Ditolak" : "Pending"}
-                  </button>
-                ))}
-              </div>
-            </div>
-
+              </div>  
           </div>
 
 
@@ -534,7 +577,7 @@ export default function AdminLaporan({ db, onUpdateDb, defaultMainTab = "pdf" }:
                   )}
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 text-[10.5px] leading-relaxed bg-slate-50 p-2.5 rounded-xl border border-slate-100/60">
+                <div className="grid grid-cols-3 gap-2 text-[10.5px] leading-relaxed bg-slate-50 p-2.5 rounded-lg border border-slate-100/60">
                   <div>
                     <span className="text-[8.5px] font-black text-slate-400 uppercase block leading-none mb-0.5">Tutor</span>
                     <span className="font-bold text-slate-700">{item.tutorNama}</span>
@@ -643,12 +686,12 @@ export default function AdminLaporan({ db, onUpdateDb, defaultMainTab = "pdf" }:
         <div className="space-y-4 animate-fade-in">
           
           {/* Claims List Filters */}
-          <div className="flex gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/40">
+          <div className="flex gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200/40">
             {["semua", "pending", "setuju", "tolak"].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setClaimFilter(tab as any)}
-                className={`flex-1 py-1 px-1.5 text-[10px] font-bold rounded-lg cursor-pointer transition-all capitalize ${
+                className={`flex-1 py-1 px-1.5 text-[10px] font-bold rounded-sm cursor-pointer transition-all capitalize ${
                   claimFilter === tab 
                     ? "bg-white text-brand-700 shadow-3xs" 
                     : "text-slate-500 hover:text-slate-700"

@@ -75,6 +75,7 @@ export default function AdminOperasional({
 
   // Schedule Form Fields
   const [schedHari, setSchedHari] = useState<"Senin" | "Selasa" | "Rabu" | "Kamis" | "Jumat" | "Sabtu" | "Minggu">("Senin");
+  const [schedHariList, setSchedHariList] = useState<("Senin" | "Selasa" | "Rabu" | "Kamis" | "Jumat" | "Sabtu" | "Minggu")[]>(["Senin"]);
   const [schedWaktu, setSchedWaktu] = useState("13:30 - 15:00");
   const [schedTutorId, setSchedTutorId] = useState("");
   const [schedSiswaId, setSchedSiswaId] = useState("");
@@ -125,6 +126,7 @@ export default function AdminOperasional({
 
     // Clear schedule fields
     setSchedHari("Senin");
+    setSchedHariList(["Senin"]);
     setSchedWaktu("13:30 - 15:00");
     setSchedTutorId(db.tutors.filter(t => t.status === "aktif")[0]?.id || "");
     setSchedSiswaId(db.students.filter(s => s.status === "aktif")[0]?.id || "");
@@ -164,6 +166,7 @@ export default function AdminOperasional({
     } else if (activeSubTab === "jadwal") {
       const j = item as JadwalTutor;
       setSchedHari(j.hari);
+      setSchedHariList([j.hari]);
       setSchedWaktu(j.waktu);
       setSchedTutorId(j.tutorId);
       setSchedSiswaId(j.siswaId);
@@ -321,6 +324,10 @@ export default function AdminOperasional({
         alert("Semua data (Tutor, Siswa, dan Program) wajib dipilih.");
         return;
       }
+      if (schedHariList.length === 0) {
+        alert("Pilih minimal satu hari bimbingan.");
+        return;
+      }
       const tutorObj = nextDb.tutors.find(t => t.id === schedTutorId);
       const studentObj = nextDb.students.find(s => s.id === schedSiswaId);
       const programObj = nextDb.programs.find(p => p.id === schedProgramId);
@@ -332,9 +339,10 @@ export default function AdminOperasional({
 
       if (editingItem) {
         // Edit schedule
+        const selectedHari = schedHariList[0] || schedHari;
         nextDb.schedules = (nextDb.schedules || []).map(s => s.id === editingItem.id ? {
           ...s,
-          hari: schedHari,
+          hari: selectedHari,
           waktu: schedWaktu,
           tutorId: tutorObj.id,
           tutorNama: tutorObj.nama,
@@ -344,20 +352,35 @@ export default function AdminOperasional({
           programNama: programObj.nama
         } : s);
       } else {
-        // Add schedule
-        const newId = `JDW-${String((nextDb.schedules || []).length + 1).padStart(4, "0")}`;
-        const newSchedule: JadwalTutor = {
-          id: newId,
-          hari: schedHari,
-          waktu: schedWaktu,
-          tutorId: tutorObj.id,
-          tutorNama: tutorObj.nama,
-          siswaId: studentObj.id,
-          siswaNama: studentObj.nama,
-          programId: programObj.id,
-          programNama: programObj.nama
-        };
-        nextDb.schedules = [...(nextDb.schedules || []), newSchedule];
+        // Add schedule for multiple selected days
+        let currentSchedules = [...(nextDb.schedules || [])];
+        
+        schedHariList.forEach((hari) => {
+          const maxIdNum = currentSchedules.reduce((max, s) => {
+            const match = s.id.match(/^JDW-(\d+)$/);
+            if (match) {
+              const num = parseInt(match[1], 10);
+              return num > max ? num : max;
+            }
+            return max;
+          }, 0);
+          
+          const newId = `JDW-${String(maxIdNum + 1).padStart(4, "0")}`;
+          const newSchedule: JadwalTutor = {
+            id: newId,
+            hari: hari,
+            waktu: schedWaktu,
+            tutorId: tutorObj.id,
+            tutorNama: tutorObj.nama,
+            siswaId: studentObj.id,
+            siswaNama: studentObj.nama,
+            programId: programObj.id,
+            programNama: programObj.nama
+          };
+          currentSchedules.push(newSchedule);
+        });
+        
+        nextDb.schedules = currentSchedules;
       }
     }
 
@@ -446,7 +469,7 @@ export default function AdminOperasional({
               <div 
                 key={siswa.id} 
                 id={`student-card-${siswa.id}`}
-                className="bg-white p-5 rounded-lg border border-slate-100 shadow-xs relative flex flex-col gap-3 group hover:border-brand-200 transition-all"
+                className="bg-white p-4 rounded-lg border border-slate-100 shadow-xs relative flex flex-col gap-3 group hover:border-brand-200 transition-all"
               >
                 {/* ID badge & active badge */}
                 <div className="flex justify-between items-center">
@@ -462,7 +485,14 @@ export default function AdminOperasional({
 
                 {/* Main details */}
                 <div>
-                  <h4 className="font-extrabold text-slate-800 text-sm tracking-tight">{siswa.nama}</h4>
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="font-extrabold text-slate-800 text-sm tracking-tight">{siswa.nama}</h4>
+                    {activeProgram && (
+                      <span className="text-[10px] font-extrabold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-md">
+                        {activeProgram.nama}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-1.5 text-slate-500 text-[11px] mt-1.5 font-medium">
                     <Phone size={12} className="text-slate-400" />
                     <span>Ortu: {siswa.teleponOrangTua}</span>
@@ -478,8 +508,9 @@ export default function AdminOperasional({
                 {/* Balance status / quick action */}
                 <div className="flex justify-between items-center pt-2.5 border-t border-slate-50 mt-1">
                   <div>
+                    <p className="text-[9.5px] text-slate-400 font-semibold uppercase tracking-wider">Jumlah Tagihan</p>
                     <p className={`text-xs font-black font-mono ${currentBalance > 0 ? "text-rose-600" : "text-emerald-600"}`}>
-                      {currentBalance > 0 ? `Tagihan: ${formatRupiah(currentBalance)}` : currentBalance < 0 ? `Lebih: ${formatRupiah(Math.abs(currentBalance))}` : "Lunas : Rp 0"}
+                      {currentBalance > 0 ? `Tagihan: ${formatRupiah(currentBalance)}` : currentBalance < 0 ? `Lebih: ${formatRupiah(Math.abs(currentBalance))}` : "Lunas: Rp 0"}
                     </p>
                   </div>
 
@@ -489,7 +520,7 @@ export default function AdminOperasional({
                       onClick={() => onNavigateToTab("keuangan", "rekening", siswa.id)}
                       className="text-[10.5px] font-bold text-brand-600 hover:text-brand-800 bg-brand-50 px-2.5 py-1.5 rounded-lg cursor-pointer transition-all"
                     >
-                      Buku Tagihan
+                      Buka Tabungan
                     </button>
                     <button
                       id={`student-edit-btn-${siswa.id}`}
@@ -784,6 +815,23 @@ export default function AdminOperasional({
                     />
                   </div>
                   <div>
+                    <label className="block text-[10.5px] text-slate-400 font-bold uppercase tracking-wider mb-1">Pilih Program Belajar *</label>
+                    <select
+                      id="input-student-program"
+                      required
+                      value={studentProgram}
+                      onChange={(e) => setStudentProgram(e.target.value)}
+                      className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none"
+                    >
+                      <option value="" disabled>-- Pilih Program Belajar --</option>
+                      {db.programs.filter(p => p.status === "aktif").map(prog => (
+                        <option key={prog.id} value={prog.id}>
+                          {prog.nama} ({prog.jenjang}) - {formatRupiah(prog.tarifSiswa)}/sesi
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
                     <label className="block text-[10.5px] text-slate-400 font-bold uppercase tracking-wider mb-1">No. Handphone Ortu *</label>
                     <input
                       type="text"
@@ -1017,21 +1065,39 @@ export default function AdminOperasional({
               {activeSubTab === "jadwal" && (
                 <>
                   <div>
-                    <label className="block text-[10.5px] text-slate-400 font-bold uppercase tracking-wider mb-1">Hari Bimbingan *</label>
-                    <select
-                      id="input-schedule-hari"
-                      value={schedHari}
-                      onChange={(e) => setSchedHari(e.target.value as any)}
-                      className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none"
-                    >
-                      <option value="Senin">Senin</option>
-                      <option value="Selasa">Selasa</option>
-                      <option value="Rabu">Rabu</option>
-                      <option value="Kamis">Kamis</option>
-                      <option value="Jumat">Jumat</option>
-                      <option value="Sabtu">Sabtu</option>
-                      <option value="Minggu">Minggu</option>
-                    </select>
+                    <label className="block text-[10.5px] text-slate-400 font-bold uppercase tracking-wider mb-1.5">Hari Bimbingan *</label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {(["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"] as const).map((day) => {
+                        const isSelected = schedHariList.includes(day);
+                        return (
+                          <button
+                            key={day}
+                            type="button"
+                            onClick={() => {
+                              if (editingItem) {
+                                // For editing, we only select ONE day
+                                setSchedHariList([day]);
+                                setSchedHari(day);
+                              } else {
+                                // For adding, we can select MULTIPLE days
+                                if (schedHariList.includes(day)) {
+                                  setSchedHariList(schedHariList.filter(d => d !== day));
+                                } else {
+                                  setSchedHariList([...schedHariList, day]);
+                                }
+                              }
+                            }}
+                            className={`py-2 px-1 text-center rounded-xl text-[11px] font-bold border transition-all cursor-pointer active:scale-95 ${
+                              isSelected
+                                ? "bg-brand-600 text-white border-brand-600 shadow-3xs"
+                                : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
+                            }`}
+                          >
+                            {day}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                   <div>
                     <label className="block text-[10.5px] text-slate-400 font-bold uppercase tracking-wider mb-1">Waktu Sesi (Jam) *</label>

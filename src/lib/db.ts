@@ -684,7 +684,8 @@ export function addGeneralExpenseTransaction(
     id: `KAS-${String(nextDb.kas.length + 1).padStart(4, "0")}`,
     tanggal: data.tanggal,
     tipe: "keluar",
-    keterangan: data.keterangan,
+    // Menambahkan awalan "Pengeluaran Lain" pada keterangan
+    keterangan: `Pengeluaran Lain - ${data.keterangan}`, 
     jumlah: data.jumlah,
     saldoBerjalan: prevKasSaldo - data.jumlah,
     referensiId: undefined
@@ -794,7 +795,7 @@ export function addOtherIncomeTransaction(
     id: `KAS-${String(nextDb.kas.length + 1).padStart(4, "0")}`,
     tanggal: data.tanggal,
     tipe: "masuk",
-    keterangan: `Pemasukan Lain [${newId}] (${data.jenis})${data.keterangan ? ' - ' + data.keterangan : ''}`,
+    keterangan: `Pemasukan Lain [${newId}] ${data.keterangan ? ' - ' + data.keterangan : ''}`,
     jumlah: data.nominal,
     saldoBerjalan: prevKasSaldo + data.nominal,
     referensiId: newId

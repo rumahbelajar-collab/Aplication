@@ -524,7 +524,7 @@ export default function AdminDashboard({
                 onClick={() => onOpenQuickAction("payment")}
                 className="flex flex-col items-center justify-center p-3 bg-white border border-slate-100 rounded-lg shadow-xs group cursor-pointer transition-all active:scale-95 min-h-[90px]"
               >
-                <div className="w-11 h-11 bg-emerald-50 group-hover:bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center border border-emerald-100/50 transition-all">
+                <div className="w-11 h-11 bg-emerald-50 group-hover:bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center border border-emerald-100/50 transition-all">
                   <Coins size={20} />
                 </div>
                 <span className="text-[10px] text-slate-600 font-semibold leading-tight mt-1.5 text-center">Terima Bayar</span>
@@ -680,8 +680,9 @@ export default function AdminDashboard({
             </div>
 
         {/* 4. FINANCIAL WRAPPER (ESTIMATION & OUTSTANDINGS) */}
+        {/* 4. FINANCIAL WRAPPER (ESTIMATION & OUTSTANDINGS) */}
         <div id="financial-card" className="bg-white p-4 rounded-lg shadow-xs border border-slate-100 mb-6">
-          <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-50">
+          <div className="flex items-center justify-between mb-3 pb-3 border-b border-slate-50">
             <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Buku Operasional {formatBulanTahun(getTodayDateString())}</h3>
             <span className="text-[10px] font-bold text-brand-600 bg-brand-50 px-2 py-0.5 rounded-full">Bulan Ini</span>
           </div>
@@ -704,7 +705,7 @@ export default function AdminDashboard({
           </div>
 
           {/* Profit Section */}
-          <div className="bg-slate-50 p-2.5 rounded-xl flex items-center justify-between mb-4">
+          <div className="bg-slate-50 p-2.5 rounded-lg flex items-center justify-between mb-4">
             <span className="text-[10.5px] font-bold text-slate-500">Estimasi Laba Bersih</span>
             <span className={`text-xs font-extrabold font-mono ${estimatedProfit >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
               {estimatedProfit >= 0 ? "+" : ""}{formatRupiah(estimatedProfit)}
@@ -747,18 +748,6 @@ export default function AdminDashboard({
                 Titipan di Tangan Tutor
               </div>
               <span className="font-bold text-slate-700 font-mono">{formatRupiah(totalTitipanPending)}</span>
-            </div>
-
-            <div 
-              id="pemasukan-lain-row"
-              onClick={() => onNavigateToTab("keuangan", "lain")}
-              className="flex items-center justify-between text-xs cursor-pointer hover:bg-slate-50/50 p-1 rounded-lg transition-colors"
-            >
-              <div className="flex items-center gap-2 text-slate-500 font-medium">
-                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-                Pemasukan Lain-Lain Lembaga
-              </div>
-              <span className="font-bold text-slate-700 font-mono">{formatRupiah(monthlyOtherIncomes)}</span>
             </div>
           </div>
         </div>
@@ -859,73 +848,73 @@ export default function AdminDashboard({
             </div>
           </div>
 
-<div className="space-y-2 max-h-[340px] overflow-y-auto pr-1 scrollbar-thin">
-  {sortedSchedules.map((schedule) => (
-    <div 
-      key={schedule.id}
-      className="p-3 bg-white border border-slate-100 rounded-xl flex flex-col gap-2.5 shadow-3xs"
-    >
-      {/* Baris Atas: Label Hari, ID, & Jam */}
-      <div className="flex justify-between items-center w-full">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[9px] font-black uppercase tracking-wider bg-brand-50 text-brand-600 px-2 py-0.5 rounded-md">
-            {schedule.hari}
-          </span>
-          <span className="text-[9px] font-bold font-mono text-slate-400">
-            #{schedule.id}
-          </span>
-        </div>
-        <span className="text-[10px] font-black font-mono text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
-          {schedule.waktu}
-        </span>
-      </div>
+          <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1 scrollbar-thin">
+            {sortedSchedules.map((schedule) => (
+              <div 
+                key={schedule.id}
+                className="p-3 bg-white border border-slate-100 rounded-xl flex flex-col gap-2.5 shadow-3xs"
+              >
+                {/* Baris Atas: Label Hari, ID, & Jam */}
+                <div className="flex justify-between items-center w-full">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] font-black uppercase tracking-wider bg-brand-50 text-brand-600 px-2 py-0.5 rounded-md">
+                      {schedule.hari}
+                    </span>
+                    <span className="text-[9px] font-bold font-mono text-slate-400">
+                      #{schedule.id}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-black font-mono text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
+                    {schedule.waktu}
+                  </span>
+                </div>
 
-      {/* Menggunakan grid 3 kolom agar posisi Tutor, Siswa, dan Program sejajar rapi dalam satu baris */}
-      <div className="grid grid-cols-3 gap-5 pt-2.5 w-full min-w-0 border-t border-slate-50">
-        
-        {/* Kolom 1: Tutor */}
-        <div className="flex flex-col min-w-0">
-          <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
-            Tutor
-          </span>
-          {/* Menghapus group-hover:text-amber-600 agar warna teks tutor tetap slate-700 yang solid */}
-          <p className="text-xs font-black text-slate-700 truncate leading-tight">
-            {schedule.tutorNama}
-          </p>
-        </div>
+                {/* Menggunakan grid 3 kolom agar posisi Tutor, Siswa, dan Program sejajar rapi dalam satu baris */}
+                <div className="grid grid-cols-3 gap-5 pt-2.5 w-full min-w-0 border-t border-slate-50">
+                  
+                  {/* Kolom 1: Tutor */}
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
+                      Tutor
+                    </span>
+                    {/* Menghapus group-hover:text-amber-600 agar warna teks tutor tetap slate-700 yang solid */}
+                    <p className="text-xs font-black text-slate-700 truncate leading-tight">
+                      {schedule.tutorNama}
+                    </p>
+                  </div>
 
-        {/* Kolom 2: Siswa */}
-        <div className="flex flex-col min-w-0">
-          <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
-            Siswa
-          </span>
-          <p className="text-xs font-extrabold text-slate-600 truncate leading-tight">
-            {schedule.siswaNama}
-          </p>
-        </div>
+                  {/* Kolom 2: Siswa */}
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
+                      Siswa
+                    </span>
+                    <p className="text-xs font-extrabold text-slate-600 truncate leading-tight">
+                      {schedule.siswaNama}
+                    </p>
+                  </div>
 
-        {/* Kolom 3: Program */}
-        <div className="flex flex-col min-w-0">
-          <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
-            Program
-          </span>
-          <p className="text-[10px] font-black text-slate-600 truncate leading-tight">
-            {schedule.programNama}
-          </p>
-        </div>
+                  {/* Kolom 3: Program */}
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
+                      Program
+                    </span>
+                    <p className="text-[10px] font-black text-slate-600 truncate leading-tight">
+                      {schedule.programNama}
+                    </p>
+                  </div>
 
-      </div>
-    </div>
-  ))}
+                </div>
+              </div>
+            ))}
 
-  {sortedSchedules.length === 0 && (
-    <div className="text-center py-10 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
-      <p className="text-xs font-semibold text-slate-400 italic">
-        Tidak ada jadwal bimbingan yang cocok.
-      </p>
-    </div>
-  )}
-</div>
+            {sortedSchedules.length === 0 && (
+              <div className="text-center py-10 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                <p className="text-xs font-semibold text-slate-400 italic">
+                  Tidak ada jadwal bimbingan yang cocok.
+                </p>
+              </div>
+            )}
+          </div>
 
         </div>
       )}

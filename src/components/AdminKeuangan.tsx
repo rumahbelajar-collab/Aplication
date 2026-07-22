@@ -492,7 +492,7 @@ export default function AdminKeuangan({
                       {/* Chronological Table ledger */}
                       <div className="mt-4">
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Riwayat Mutasi Tagihan</p>
-                        <div className="border border-slate-100 rounded-lg overflow-hidden text-xs">
+                        <div className="border border-slate-100 rounded-lg overflow-x-auto text-xs">
                           <table className="w-full text-left border-collapse">
                             <thead>
                               <tr className="bg-slate-50 text-slate-400 font-bold uppercase text-[9px] border-b border-slate-100">
@@ -776,7 +776,7 @@ export default function AdminKeuangan({
                       {/* Chronological Table ledger */}
                       <div className="mt-4">
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Riwayat Mutasi Honor</p>
-                        <div className="border border-slate-100 rounded-xl overflow-hidden text-xs">
+                        <div className="border border-slate-100 rounded-xl overflow-x-auto text-xs">
                           <table className="w-full text-left border-collapse">
                             <thead>
                               <tr className="bg-slate-50 text-slate-400 font-bold uppercase text-[9px] border-b border-slate-100">
@@ -827,6 +827,15 @@ export default function AdminKeuangan({
   
   {/* Kontainer untuk membungkus kedua tombol agar berjejer ke samping secara rapi */}
   <div className="flex flex-wrap items-center gap-2 mt-3.5">
+
+    {/* 2. Tombol Catat Pemasukan Lain */}
+    <button
+      onClick={() => setIsOtherIncomeModalOpen(true)}
+      className="flex items-center justify-center gap-1 text-[10.5px] font-black bg-white text-emerald-800 hover:bg-emerald-50 px-3.5 py-2 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 flex-1 sm:flex-initial"
+    >
+      <Plus size={14} className="stroke-[3]" />
+      <span>Pemasukan Lain</span>
+    </button>
     
     {/* 1. Tombol Catat Pengeluaran Operasional */}
     <button
@@ -835,25 +844,15 @@ export default function AdminKeuangan({
       className="flex items-center justify-center gap-1 text-[10.5px] font-black bg-white text-emerald-800 hover:bg-emerald-50 px-3.5 py-2 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 flex-1 sm:flex-initial"
     >
       <Minus size={14} className="stroke-[3]" />
-      <span>Catat Pengeluaran Operasional</span>
+      <span>Pengeluaran Lain</span>
     </button>
-    
-    {/* 2. Tombol Catat Pemasukan Lain */}
-    <button
-      onClick={() => setIsOtherIncomeModalOpen(true)}
-      className="flex items-center justify-center gap-1 text-[10.5px] font-black bg-white text-emerald-800 hover:bg-emerald-50 px-3.5 py-2 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 flex-1 sm:flex-initial"
-    >
-      <Plus size={14} className="stroke-[3]" />
-      <span>Catat Pemasukan Lain</span>
-    </button>
-
   </div>
 </div>
 
           <div>
             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 px-2">Arus Buku Kas Lembaga</h3>
             
-            <div className="border border-slate-100 rounded-lg bg-white overflow-hidden text-xs shadow-3xs">
+            <div className="border border-slate-100 rounded-lg bg-white overflow-x-auto text-xs shadow-3xs">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 text-slate-400 font-bold uppercase text-[9px] border-b border-slate-100">
@@ -1067,8 +1066,8 @@ export default function AdminKeuangan({
 
               {/* Live Preview of Net Honor */}
               {honorPotongan > 0 && (
-                <div className="bg-amber-50/70 border border-amber-100 rounded-2xl p-3 text-xs flex justify-between items-center text-amber-900">
-                  <div className="font-bold">Honor Bersih (Take Home Pay):</div>
+                <div className="bg-amber-50/70 border border-amber-100 rounded-lg p-3 text-xs flex justify-between items-center text-amber-900">
+                  <div className="font-bold">Honor Bersih:</div>
                   <div className="font-black text-sm font-mono text-amber-800">
                     {formatRupiah(Math.max(0, honorJumlah - honorPotongan))}
                   </div>
@@ -1207,20 +1206,17 @@ export default function AdminKeuangan({
             </div>
 
             <form onSubmit={handleOtherIncomeSubmit} className="p-5 space-y-4">
+
               <div>
-                <label className="block text-[10.5px] text-slate-400 font-bold uppercase tracking-wider mb-1">Jenis Pemasukan *</label>
-                <select
+                <label className="block text-[10.5px] text-slate-400 font-bold uppercase tracking-wider mb-1">Keterangan Pemasukan</label>
+                <input
+                  id="input-outsense-desc"
                   required
-                  value={otherIncomeJenis}
-                  onChange={(e) => setOtherIncomeJenis(e.target.value)}
+                  placeholder="Contoh: Pembelian Spidol & Kertas HVS"
+                  value={otherIncomeKeterangan}
+                  onChange={(e) => setOtherIncomeKeterangan(e.target.value)}
                   className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
-                >
-                  <option value="Uang Pendaftaran">Uang Pendaftaran (Siswa Baru)</option>
-                  <option value="Modul Belajar">Modul & Buku Belajar</option>
-                  <option value="Seragam Lembaga">Pembelian Seragam</option>
-                  <option value="Donasi / Sponsor">Donasi / Sponsorship</option>
-                  <option value="Pemasukan Lain-lain">Lain-lain</option>
-                </select>
+                />
               </div>
 
               <div>
@@ -1239,16 +1235,6 @@ export default function AdminKeuangan({
                 <CustomDatePicker
                   value={otherIncomeTanggal}
                   onChange={(val) => setOtherIncomeTanggal(val)}
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10.5px] text-slate-400 font-bold uppercase tracking-wider mb-1">Keterangan / Catatan Tambahan (Opsional)</label>
-                <textarea
-                  placeholder="Contoh: Pembelian buku modul matematika oleh murid RBS01"
-                  value={otherIncomeKeterangan}
-                  onChange={(e) => setOtherIncomeKeterangan(e.target.value)}
-                  className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none h-16 resize-none"
                 />
               </div>
 

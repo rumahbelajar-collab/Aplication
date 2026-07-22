@@ -70,7 +70,7 @@ export default function TutorRekening({ db, tutorId }: TutorRekeningProps) {
         <div className="space-y-3">
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-3 px-2">Riwayat Mutasi Honor</p>
           
-          <div className="border border-slate-100 rounded-sm bg-white overflow-hidden text-[11px] shadow-3xs">
+          <div className="border border-slate-100 rounded-sm bg-white overflow-x-auto text-[11px] shadow-3xs">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 text-slate-400 font-bold uppercase text-[8.5px] border-b border-slate-100">

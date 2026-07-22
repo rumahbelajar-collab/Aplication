@@ -264,9 +264,14 @@ export default function TutorDashboard({
           <div className="w-6 h-6 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center shrink-0">
             <Wallet size={13} />
           </div>
-          <p className="text-[13.5px] font-black text-amber-500 font-mono leading-none truncate flex-1">
-            {formatRupiah(depositBalance)}
+        <div className="flex flex-col">
+          <p className="text-[13.5px] font-black text-amber-500 font-mono leading-none truncate mb-1">
+            Rp.
           </p>
+          <p className="text-[13.5px] font-black text-amber-500 font-mono leading-none truncate">
+            {depositBalance}
+          </p>
+        </div>
         </div>
       </div>
     </div>
