@@ -75,28 +75,10 @@ export function getTodayDateString(): string {
 // STORAGE KEY
 const DB_STORAGE_KEY = "rumah_belajar_db_v2";
 
-// INITIAL SEED DATA FOR DEMO
-const INITIAL_PROGRAMS: ProgramBelajar[] = [
-  { id: "PB-01", nama: "Matematika SD Kelas 6", jenjang: "SD", mapel: "Matematika", durasi: 90, tarifSiswa: 120000, honorTutor: 60000, status: "aktif", deskripsi: "Persiapan Ujian Sekolah dasar matematika" },
-  { id: "PB-02", nama: "IPA Terpadu SMP Kelas 9", jenjang: "SMP", mapel: "IPA", durasi: 90, tarifSiswa: 150000, honorTutor: 75000, status: "aktif", deskripsi: "Fisika, Kimia, Biologi SMP" },
-  { id: "PB-03", nama: "Fisika SMA Kelas 12", jenjang: "SMA", mapel: "Fisika", durasi: 90, tarifSiswa: 180000, honorTutor: 90000, status: "aktif", deskripsi: "Persiapan UTBK / SNBT materi Fisika" },
-  { id: "PB-04", nama: "English Speaking for Beginners", jenjang: "Umum", mapel: "Bahasa Inggris", durasi: 120, tarifSiswa: 200000, honorTutor: 100000, status: "aktif", deskripsi: "Conversation and grammar basics" },
-];
-
-const INITIAL_TUTORS: Tutor[] = [
-  { id: "RBT01", nama: "Budi Santoso, S.Pd.", idLogin: "budi", password: "123", status: "aktif", telepon: "081234567890", alamat: "Jl. Merdeka No. 45, Jakarta", tanggalBergabung: "2026-01-10" },
-  { id: "RBT02", nama: "Siti Aminah, M.Si.", idLogin: "siti", password: "123", status: "aktif", telepon: "085678901234", alamat: "Jl. Anggrek No. 12, Bandung", tanggalBergabung: "2026-02-15" },
-  { id: "RBT03", nama: "Rian Hidayat, B.Eng.", idLogin: "rian", password: "123", status: "aktif", telepon: "087789012345", alamat: "Kost Harmoni, Depok", tanggalBergabung: "2026-03-01" },
-  { id: "RBT04", nama: "Dewi Lestari, S.Hum.", idLogin: "dewi", password: "123", status: "nonaktif", telepon: "089912345678", alamat: "Jl. Melati Baru 4, Bekasi", tanggalBergabung: "2025-08-01" },
-];
-
-const INITIAL_STUDENTS: Siswa[] = [
-  { id: "RBS01", nama: "Adi Wijaya", programId: "PB-01", status: "aktif", teleponOrangTua: "081122334455", alamat: "Komp. Permai Lestari Blok C/10", tanggalDaftar: "2026-05-01" },
-  { id: "RBS02", nama: "Bella Pratama", programId: "PB-02", status: "aktif", teleponOrangTua: "081133445566", alamat: "Perum Graha Indah No. 22", tanggalDaftar: "2026-05-15" },
-  { id: "RBS03", nama: "Candra Kirana", programId: "PB-03", status: "aktif", teleponOrangTua: "081144556677", alamat: "Jl. Cemara Hijau II No. 8", tanggalDaftar: "2026-06-01" },
-  { id: "RBS04", nama: "Dian Lestari", programId: "PB-01", status: "aktif", teleponOrangTua: "081155667788", alamat: "Jl. Flamboyan Raya No. 15", tanggalDaftar: "2026-06-05" },
-  { id: "RBS05", nama: "Elga Pradipta", programId: "PB-04", status: "aktif", teleponOrangTua: "081166778899", alamat: "Apartemen Gateway Tower B-32", tanggalDaftar: "2026-06-10" },
-];
+// INITIAL SEED DATA - CLEAN EMPTY SLATE AS REQUESTED BY USER
+const INITIAL_PROGRAMS: ProgramBelajar[] = [];
+const INITIAL_TUTORS: Tutor[] = [];
+const INITIAL_STUDENTS: Siswa[] = [];
 
 export function safeGetItem(key: string): string | null {
   try {
@@ -134,23 +116,17 @@ export function getDatabase(): Database {
         otherIncomes: parsed.otherIncomes || [],
         attendanceReports: parsed.attendanceReports || [],
         raports: parsed.raports || [],
-        schedules: parsed.schedules || [
-          { id: "JDW-0001", hari: "Senin", waktu: "13:30 - 15:00", tutorId: "RBT01", tutorNama: "Budi Santoso, S.Pd.", siswaId: "RBS01", siswaNama: "Adi Wijaya", programId: "PB-01", programNama: "Matematika SD Kelas 6" },
-          { id: "JDW-0002", hari: "Senin", waktu: "15:30 - 17:00", tutorId: "RBT01", tutorNama: "Budi Santoso, S.Pd.", siswaId: "RBS04", siswaNama: "Dian Lestari", programId: "PB-01", programNama: "Matematika SD Kelas 6" },
-          { id: "JDW-0003", hari: "Senin", waktu: "14:00 - 15:30", tutorId: "RBT02", tutorNama: "Siti Aminah, M.Si.", siswaId: "RBS02", siswaNama: "Bella Pratama", programId: "PB-02", programNama: "IPA Terpadu SMP Kelas 9" },
-          { id: "JDW-0004", hari: "Senin", waktu: "16:00 - 17:30", tutorId: "RBT03", tutorNama: "Rian Hidayat, B.Eng.", siswaId: "RBS03", siswaNama: "Candra Kirana", programId: "PB-03", programNama: "Fisika SMA Kelas 12" },
-          { id: "JDW-0005", hari: "Senin", waktu: "14:00 - 15:30", tutorId: "RBT04", tutorNama: "Dewi Lestari, S.Hum.", siswaId: "RBS05", siswaNama: "Elga Pradipta", programId: "PB-04", programNama: "English Speaking for Beginners" },
-        ],
-        broadcastMessage: parsed.broadcastMessage ?? "📢 PENGUMUMAN TUTOR: Mohon segera lakukan serah terima uang titipan pembayaran siswa yang diterima kepada Staf Administrasi maksimal 3 hari sejak diterima. | Harap catat riwayat pertemuan di hari bimbingan yang sama untuk ketertiban honor. | Terima kasih!",
-        adminPassword: parsed.adminPassword ?? "admin123"
+        schedules: parsed.schedules || [],
+        broadcastMessage: parsed.broadcastMessage ?? "📢 PENGUMUMAN TUTOR: Mohon lakukan serah terima uang titipan pembayaran siswa kepada Staf Administrasi dan catat riwayat pertemuan secara tertib. Terima kasih!",
+        adminPassword: parsed.adminPassword ?? ""
       };
     }
   } catch (e) {
     console.error("Error loading database, resetting", e);
   }
   
-  // Create Seed Data
-  const db = generateSeedDatabase();
+  // Create Clean Empty Database
+  const db = generateCleanDatabase();
   saveDatabase(db);
   return db;
 }
@@ -162,11 +138,11 @@ export function saveDatabase(db: Database): void {
   });
 }
 
-function generateSeedDatabase(): Database {
-  const db: Database = {
-    programs: [...INITIAL_PROGRAMS],
-    students: [...INITIAL_STUDENTS],
-    tutors: [...INITIAL_TUTORS],
+function generateCleanDatabase(): Database {
+  return {
+    programs: [],
+    students: [],
+    tutors: [],
     sessions: [],
     studentLedger: [],
     payments: [],
@@ -176,215 +152,32 @@ function generateSeedDatabase(): Database {
     otherIncomes: [],
     attendanceReports: [],
     raports: [],
-    schedules: [
-      { id: "JDW-0001", hari: "Senin", waktu: "13:30 - 15:00", tutorId: "RBT01", tutorNama: "Budi Santoso, S.Pd.", siswaId: "RBS01", siswaNama: "Adi Wijaya", programId: "PB-01", programNama: "Matematika SD Kelas 6" },
-      { id: "JDW-0002", hari: "Senin", waktu: "15:30 - 17:00", tutorId: "RBT01", tutorNama: "Budi Santoso, S.Pd.", siswaId: "RBS04", siswaNama: "Dian Lestari", programId: "PB-01", programNama: "Matematika SD Kelas 6" },
-      { id: "JDW-0003", hari: "Senin", waktu: "14:00 - 15:30", tutorId: "RBT02", tutorNama: "Siti Aminah, M.Si.", siswaId: "RBS02", siswaNama: "Bella Pratama", programId: "PB-02", programNama: "IPA Terpadu SMP Kelas 9" },
-      { id: "JDW-0004", hari: "Senin", waktu: "16:00 - 17:30", tutorId: "RBT03", tutorNama: "Rian Hidayat, B.Eng.", siswaId: "RBS03", siswaNama: "Candra Kirana", programId: "PB-03", programNama: "Fisika SMA Kelas 12" },
-      { id: "JDW-0005", hari: "Senin", waktu: "14:00 - 15:30", tutorId: "RBT04", tutorNama: "Dewi Lestari, S.Hum.", siswaId: "RBS05", siswaNama: "Elga Pradipta", programId: "PB-04", programNama: "English Speaking for Beginners" },
-    ],
-    broadcastMessage: "📢 PENGUMUMAN TUTOR: Mohon segera lakukan serah terima uang titipan pembayaran siswa yang diterima kepada Staf Administrasi maksimal 3 hari sejak diterima. | Harap catat riwayat pertemuan di hari bimbingan yang sama untuk ketertiban honor. | Terima kasih!",
-    adminPassword: "admin123"
+    schedules: [],
+    broadcastMessage: "📢 PENGUMUMAN TUTOR: Mohon lakukan serah terima uang titipan pembayaran siswa kepada Staf Administrasi dan catat riwayat pertemuan secara tertib. Terima kasih!",
+    adminPassword: ""
   };
+}
 
-  // Let's seed initial transactions in June 2026!
-  // Our dates: 2026-06-02 to 2026-06-28.
-  // We want to create dynamic entries that are consistent.
-  
-  // Let's pre-populate some sessions:
-  const initialSess = [
-    { tanggal: "2026-06-02", studentId: "RBS01", tutorId: "RBT01" }, // Adi, Budi, PB-01
-    { tanggal: "2026-06-03", studentId: "RBS02", tutorId: "RBT02" }, // Bella, Siti, PB-02
-    { tanggal: "2026-06-04", studentId: "RBS03", tutorId: "RBT03" }, // Candra, Rian, PB-03
-    { tanggal: "2026-06-09", studentId: "RBS01", tutorId: "RBT01" }, // Adi, Budi, PB-01
-    { tanggal: "2026-06-10", studentId: "RBS02", tutorId: "RBT02" }, // Bella, Siti, PB-02
-    { tanggal: "2026-06-11", studentId: "RBS03", tutorId: "RBT03" }, // Candra, Rian, PB-03
-    { tanggal: "2026-06-15", studentId: "RBS04", tutorId: "RBT01" }, // Dian, Budi, PB-01
-    { tanggal: "2026-06-16", studentId: "RBS01", tutorId: "RBT01" }, // Adi, Budi, PB-01
-    { tanggal: "2026-06-17", studentId: "RBS02", tutorId: "RBT02" }, // Bella, Siti, PB-02
-    { tanggal: "2026-06-18", studentId: "RBS03", tutorId: "RBT03" }, // Candra, Rian, PB-03
-    { tanggal: "2026-06-22", studentId: "RBS04", tutorId: "RBT01" }, // Dian, Budi, PB-01
-    { tanggal: "2026-06-23", studentId: "RBS01", tutorId: "RBT01" }, // Adi, Budi, PB-01
-    { tanggal: "2026-06-24", studentId: "RBS02", tutorId: "RBT02" }, // Bella, Siti, PB-02
-    { tanggal: "2026-06-25", studentId: "RBS05", tutorId: "RBT03" }, // Elga, Rian, PB-04
-    { tanggal: "2026-06-26", studentId: "RBS03", tutorId: "RBT03" }, // Candra, Rian, PB-03
-  ];
-
-  let sessionCounter = 1;
-  let ledgerStudentCounter = 1;
-  let ledgerTutorCounter = 1;
-  let kasCounter = 1;
-  let paymentCounter = 1;
-
-  // Let's seed some direct payments and tutor payments to make the financial books interesting
-  // Seed initial Kas
-  let currentKasSaldo = 5000000; // Starting general cash 5 Million
-  db.kas.push({
-    id: `KAS-${String(kasCounter++).padStart(4, "0")}`,
-    tanggal: "2026-06-01",
-    tipe: "masuk",
-    keterangan: "Saldo Awal Kas Lembaga (Bulan Juni 2026)",
-    jumlah: 5000000,
-    saldoBerjalan: 5000000
-  });
-
-  // Re-use core triggers to preserve calculations
-  initialSess.forEach((s) => {
-    const student = db.students.find(st => st.id === s.studentId)!;
-    const tutor = db.tutors.find(t => t.id === s.tutorId)!;
-    const program = db.programs.find(p => p.id === student.programId)!;
-
-    const rpId = `RP-${String(sessionCounter++).padStart(4, "0")}`;
-    db.sessions.push({
-      id: rpId,
-      tanggal: s.tanggal,
-      siswaId: student.id,
-      siswaNama: student.nama,
-      tutorId: tutor.id,
-      tutorNama: tutor.nama,
-      programId: program.id,
-      programNama: program.nama,
-      tarifSiswaSnapshot: program.tarifSiswa,
-      honorTutorSnapshot: program.honorTutor,
-      catatan: `Sesi pembelajaran ${program.nama}`
-    });
-
-    // Debit Student Account (Session costs student)
-    const prevStudentLedger = db.studentLedger.filter(l => l.siswaId === student.id);
-    const prevStudentSaldo = prevStudentLedger.length > 0 ? prevStudentLedger[prevStudentLedger.length - 1].saldoBerjalan : 0;
-    db.studentLedger.push({
-      id: `TXS-${String(ledgerStudentCounter++).padStart(4, "0")}`,
-      tanggal: s.tanggal,
-      siswaId: student.id,
-      tipe: "debit",
-      keterangan: `Riwayat Pertemuan [${rpId}] - ${program.nama}`,
-      jumlah: program.tarifSiswa,
-      saldoBerjalan: prevStudentSaldo + program.tarifSiswa,
-      referensiId: rpId
-    });
-
-    // Kredit Tutor Account (Session earns tutor money)
-    const prevTutorLedger = db.tutorLedger.filter(l => l.tutorId === tutor.id);
-    const prevTutorSaldo = prevTutorLedger.length > 0 ? prevTutorLedger[prevTutorLedger.length - 1].saldoBerjalan : 0;
-    db.tutorLedger.push({
-      id: `TXT-${String(ledgerTutorCounter++).padStart(4, "0")}`,
-      tanggal: s.tanggal,
-      tutorId: tutor.id,
-      tipe: "kredit",
-      keterangan: `Riwayat Pertemuan [${rpId}] - Siswa: ${student.nama} - ${program.nama}`,
-      jumlah: program.honorTutor,
-      saldoBerjalan: prevTutorSaldo + program.honorTutor,
-      referensiId: rpId
-    });
-  });
-
-  // Seed Student Payments
-  // Let's record some payments that have been made in June
-  const paymentsToSeed = [
-    // Direct Admin payments (Kas increases directly)
-    { tanggal: "2026-06-10", siswaId: "RBS01", jumlah: 240000, metode: "admin" as const }, // Adi pays 2 sessions
-    { tanggal: "2026-06-12", siswaId: "RBS02", jumlah: 300000, metode: "admin" as const }, // Bella pays 2 sessions
-    { tanggal: "2026-06-15", siswaId: "RBS03", jumlah: 360000, metode: "admin" as const }, // Candra pays 2 sessions
-
-    // Payments via Tutor (Titipan Tutor)
-    // One that is already handed over to Admin
-    { tanggal: "2026-06-20", siswaId: "RBS01", jumlah: 120000, metode: "tutor" as const, tutorId: "RBT01", statusTitipan: "diserahkan" as const, tanggalSerah: "2026-06-21" },
-    // One that is still PENDING with Tutor (this forms the tutor's deposit balance!)
-    { tanggal: "2026-06-26", siswaId: "RBS04", jumlah: 240000, metode: "tutor" as const, tutorId: "RBT01", statusTitipan: "pending" as const },
-    { tanggal: "2026-06-27", siswaId: "RBS02", jumlah: 150000, metode: "tutor" as const, tutorId: "RBT02", statusTitipan: "pending" as const },
-  ];
-
-  paymentsToSeed.forEach((p) => {
-    const student = db.students.find(st => st.id === p.siswaId)!;
-    const tutor = p.tutorId ? db.tutors.find(t => t.id === p.tutorId) : undefined;
-    
-    const payId = `PAY-${String(paymentCounter++).padStart(4, "0")}`;
-    db.payments.push({
-      id: payId,
-      tanggal: p.tanggal,
-      siswaId: student.id,
-      siswaNama: student.nama,
-      jumlah: p.jumlah,
-      metode: p.metode,
-      tutorId: p.tutorId,
-      tutorNama: tutor ? tutor.nama : undefined,
-      statusTitipan: p.statusTitipan || "diserahkan",
-      tanggalSerah: p.tanggalSerah
-    });
-
-    // Credit student ledger (reduces student's outstanding balance)
-    const prevStudentLedger = db.studentLedger.filter(l => l.siswaId === student.id);
-    const prevStudentSaldo = prevStudentLedger.length > 0 ? prevStudentLedger[prevStudentLedger.length - 1].saldoBerjalan : 0;
-    db.studentLedger.push({
-      id: `TXS-${String(ledgerStudentCounter++).padStart(4, "0")}`,
-      tanggal: p.tanggal,
-      siswaId: student.id,
-      tipe: "kredit",
-      keterangan: p.metode === "admin" 
-        ? "Pembayaran langsung ke Admin" 
-        : `Titipan Pembayaran via Tutor: ${tutor?.nama}`,
-      jumlah: p.jumlah,
-      saldoBerjalan: prevStudentSaldo - p.jumlah,
-      referensiId: payId
-    });
-
-    // If direct to admin or already handed over: add to General Kas!
-    if (p.metode === "admin" || p.statusTitipan === "diserahkan") {
-      const transTanggal = p.metode === "admin" ? p.tanggal : (p.tanggalSerah || p.tanggal);
-      const prevKasSaldo = db.kas.length > 0 ? db.kas[db.kas.length - 1].saldoBerjalan : 0;
-      db.kas.push({
-        id: `KAS-${String(kasCounter++).padStart(4, "0")}`,
-        tanggal: transTanggal,
-        tipe: "masuk",
-        keterangan: p.metode === "admin" 
-          ? `Pembayaran Siswa [${payId}] - ${student.nama}`
-          : `Penerimaan Titipan Tutor [${payId}] - ${tutor?.nama} (Siswa: ${student.nama})`,
-        jumlah: p.jumlah,
-        saldoBerjalan: prevKasSaldo + p.jumlah
-      });
-    }
-  });
-
-  // Pay some tutor honors & create slip gaji
-  // Tutor Budi (RBT01) had 5 sessions * 60,000 = 300,000. Let's pay 180,000 on June 20.
-  const sliId = "SG-0001";
-  db.slips.push({
-    id: sliId,
-    tanggal: "2026-06-20",
-    tutorId: "RBT01",
-    tutorNama: "Budi Santoso, S.Pd.",
-    jumlah: 180000,
-    periode: "Juni 2026",
-    catatan: "Pembayaran Sebagian Honor Tutor Pertengahan Bulan"
-  });
-
-  // Debit tutor ledger for honor paid
-  const budiLedger = db.tutorLedger.filter(l => l.tutorId === "RBT01");
-  const budiSaldo = budiLedger.length > 0 ? budiLedger[budiLedger.length - 1].saldoBerjalan : 0;
-  db.tutorLedger.push({
-    id: `TXT-${String(ledgerTutorCounter++).padStart(4, "0")}`,
-    tanggal: "2026-06-20",
-    tutorId: "RBT01",
-    tipe: "debit",
-    keterangan: `Pembayaran Honor [${sliId}] - Periode Juni 2026`,
-    jumlah: 180000,
-    saldoBerjalan: budiSaldo - 180000,
-    referensiId: sliId
-  });
-
-  // Reduce General Kas
-  const prevKasSaldo = db.kas.length > 0 ? db.kas[db.kas.length - 1].saldoBerjalan : 0;
-  db.kas.push({
-    id: `KAS-${String(kasCounter++).padStart(4, "0")}`,
-    tanggal: "2026-06-20",
-    tipe: "keluar",
-    keterangan: `Pembayaran Honor Tutor [${sliId}] - Budi Santoso, S.Pd.`,
-    jumlah: 180000,
-    saldoBerjalan: prevKasSaldo - 180000,
-    referensiId: sliId
-  });
-
-  return db;
+export function clearPrototypeData(currentDb?: Database): Database {
+  const cleanDb: Database = {
+    programs: [],
+    students: [],
+    tutors: [],
+    sessions: [],
+    studentLedger: [],
+    payments: [],
+    tutorLedger: [],
+    slips: [],
+    kas: [],
+    otherIncomes: [],
+    attendanceReports: [],
+    raports: [],
+    schedules: [],
+    broadcastMessage: currentDb?.broadcastMessage || "📢 PENGUMUMAN TUTOR: Mohon lakukan serah terima uang titipan pembayaran siswa kepada Staf Administrasi dan catat riwayat pertemuan secara tertib. Terima kasih!",
+    adminPassword: currentDb?.adminPassword || ""
+  };
+  saveDatabase(cleanDb);
+  return cleanDb;
 }
 
 // TRANSACTION HANDLERS (AUTOMATIONS)
@@ -684,8 +477,7 @@ export function addGeneralExpenseTransaction(
     id: `KAS-${String(nextDb.kas.length + 1).padStart(4, "0")}`,
     tanggal: data.tanggal,
     tipe: "keluar",
-    // Menambahkan awalan "Pengeluaran Lain" pada keterangan
-    keterangan: `Pengeluaran Lain - ${data.keterangan}`, 
+    keterangan: data.keterangan,
     jumlah: data.jumlah,
     saldoBerjalan: prevKasSaldo - data.jumlah,
     referensiId: undefined
@@ -795,7 +587,7 @@ export function addOtherIncomeTransaction(
     id: `KAS-${String(nextDb.kas.length + 1).padStart(4, "0")}`,
     tanggal: data.tanggal,
     tipe: "masuk",
-    keterangan: `Pemasukan Lain [${newId}] ${data.keterangan ? ' - ' + data.keterangan : ''}`,
+    keterangan: `Pemasukan Lain [${newId}] (${data.jenis})${data.keterangan ? ' - ' + data.keterangan : ''}`,
     jumlah: data.nominal,
     saldoBerjalan: prevKasSaldo + data.nominal,
     referensiId: newId
