@@ -73,7 +73,7 @@ export function getTodayDateString(): string {
 }
 
 // STORAGE KEY
-const DB_STORAGE_KEY = "rumah_belajar_db_v2";
+export const DB_STORAGE_KEY = "rumah_belajar_db_v2";
 
 // INITIAL SEED DATA - CLEAN EMPTY SLATE AS REQUESTED BY USER
 const INITIAL_PROGRAMS: ProgramBelajar[] = [];
@@ -118,7 +118,7 @@ export function getDatabase(): Database {
         raports: parsed.raports || [],
         schedules: parsed.schedules || [],
         broadcastMessage: parsed.broadcastMessage ?? "📢 PENGUMUMAN TUTOR: Mohon lakukan serah terima uang titipan pembayaran siswa kepada Staf Administrasi dan catat riwayat pertemuan secara tertib. Terima kasih!",
-        adminPassword: parsed.adminPassword ?? ""
+        adminPassword: parsed.adminPassword ?? "admin123"
       };
     }
   } catch (e) {
@@ -154,7 +154,7 @@ function generateCleanDatabase(): Database {
     raports: [],
     schedules: [],
     broadcastMessage: "📢 PENGUMUMAN TUTOR: Mohon lakukan serah terima uang titipan pembayaran siswa kepada Staf Administrasi dan catat riwayat pertemuan secara tertib. Terima kasih!",
-    adminPassword: ""
+    adminPassword: "admin123"
   };
 }
 
@@ -174,7 +174,7 @@ export function clearPrototypeData(currentDb?: Database): Database {
     raports: [],
     schedules: [],
     broadcastMessage: currentDb?.broadcastMessage || "📢 PENGUMUMAN TUTOR: Mohon lakukan serah terima uang titipan pembayaran siswa kepada Staf Administrasi dan catat riwayat pertemuan secara tertib. Terima kasih!",
-    adminPassword: currentDb?.adminPassword || ""
+    adminPassword: currentDb?.adminPassword || "admin123"
   };
   saveDatabase(cleanDb);
   return cleanDb;

@@ -29,7 +29,8 @@ import {
   addSessionTransaction,
   safeGetItem,
   safeSetItem,
-  getTodayDateString
+  getTodayDateString,
+  DB_STORAGE_KEY
 } from "./lib/db";
 import { UserSession, Tutor } from "./types";
 import { pullFromSupabase, pushToSupabase, subscribeToSyncState, SyncState, subscribeToDatabaseChanges } from "./lib/supabase";
@@ -161,11 +162,11 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = subscribeToDatabaseChanges((newDb) => {
       // Avoid circular rerender loops if the data is identical
-      const currentLocal = safeGetItem("rumah_belajar_db_v1");
+      const currentLocal = safeGetItem(DB_STORAGE_KEY);
       const incomingRemote = JSON.stringify(newDb);
       if (currentLocal !== incomingRemote) {
         setDb(newDb);
-        safeSetItem("rumah_belajar_db_v1", incomingRemote);
+        safeSetItem(DB_STORAGE_KEY, incomingRemote);
       }
     });
     return unsubscribe;
@@ -182,9 +183,9 @@ export default function App() {
         const supabaseDb = await pullFromSupabase();
         if (supabaseDb) {
           setDb(supabaseDb);
-          safeSetItem("rumah_belajar_db_v1", JSON.stringify(supabaseDb));
+          safeSetItem(DB_STORAGE_KEY, JSON.stringify(supabaseDb));
         } else {
-          // If Supabase returned null (e.g. empty), sync our current state to Supabase so it's initialized
+          // If Supabase returned null (e.g. empty or table not ready), sync local state to Supabase
           await pushToSupabase(loadedDb);
         }
       } catch (err) {
@@ -405,7 +406,7 @@ export default function App() {
           <button
             id="nav-admin-home"
             onClick={() => { setActiveTab("home"); setAdminSubTab(""); }}
-            className={`flex md:flex-row flex-col items-center gap-2 py-2 px-4 md:w-full md:justify-start rounded-lg transition-all cursor-pointer ${
+            className={`flex md:flex-row flex-col items-center gap-2 py-2 px-4 md:w-full md:justify-start rounded-2xl transition-all cursor-pointer ${
               activeTab === "home" ? "text-brand-600 bg-brand-50 md:bg-white md:shadow-sm font-extrabold" : "text-slate-400 hover:text-slate-600 md:hover:bg-slate-50"
             }`}
           >
@@ -497,7 +498,7 @@ export default function App() {
   );
 
   return (
-    <div className="h-screen bg-slate-100 font-sans antialiased relative overflow-hidden flex flex-col md:flex-row">
+    <div className="h-screen bg-slate-50 font-sans antialiased relative overflow-hidden flex flex-col md:flex-row">
       
       {/* Abstract Background Blurs for Desktop/Tablet */}
       <div className="hidden md:block absolute -top-[10%] -left-[10%] w-[50vw] h-[50vw] bg-brand-100/50 rounded-full blur-[120px] pointer-events-none" />
@@ -551,74 +552,74 @@ export default function App() {
           {!userSession ? (
             <div id="login-screen" className="flex-1 flex flex-col justify-center items-center p-6 animate-fade-in my-auto">
               {/* Logo / Brand Header */}
-
-                <div className="text-center mb-1">
-                <div className="w-50 h-50 rounded-2xl flex items-center justify-center mx-auto mb-3.5">
-                  <img src="public9.png" alt="Logo Rumah Belajar" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+              <div className="text-center mb-6 relative z-10">
+              <div className="w-80 h-80 mx-auto mb-4 flex items-center justify-center">
+                  <img 
+                    src="public/public13.png" 
+                    alt="Logo Rumah Belajar" 
+                    className="w-full h-full object-cover"
+                  />
                 </div>
-                <h1 class="text-2xl font-extrabold tracking-tight font-display text-blue-800">
-                  Let's   
-                  <span class="text-blue-500">    Get   </span> 
-                  Started
-                  <span class="text-blue-500">!</span>
+                <h1 className="text-2xl font-extrabold text-brand-700 tracking-tight font-display uppercase">
+                  Lets Get Started !
                 </h1>
-                <p className="text-xs text-blue-400 font-medium">Aplikasi Sistemasi & Automatisasi Rumah Belajar</p>
+                <p className="text-xs font-semibold text-brand-500 mt-1">
+                  Aplikasi sistemasi & Automatisasi rumah belajar
+                </p>
               </div>
-
-
 
               {isRegisterOpen ? (
                 /* Tutor Registration Card */
-                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm animate-fade-in">
-                  <div className="flex items-center gap-2 mb-4 border-b border-slate-100 pb-3">
+                <div className="bg-slate-50 p-6 rounded-3xl animate-fade-in">
+                  <div className="flex items-center gap-2 mb-4 border-b border-slate-200 pb-3">
                     <button 
                       type="button" 
                       onClick={() => setIsRegisterOpen(false)}
-                      className="text-blue-400 hover:text-blue-600 transition-all p-1 hover:bg-blue-100 rounded-full"
+                      className="text-blue-400 hover:text-blue-600 transition-all p-1 hover:bg-slate-200 rounded-full"
                     >
                       <ArrowLeft size={16} />
                     </button>
                     <div className="text-left">
-                      <h2 className="text-xs font-extrabold text-blue-800 tracking-tight uppercase">Registrasi Akun Tutor</h2>
-                      <p className="text-[10px] text-blue-400">Isi formulir pendaftaran di bawah ini</p>
+                      <h2 className="text-xs font-extrabold text-blue-900 tracking-tight uppercase">Pendaftaran Tutor Baru</h2>
+                      <p className="text-[10px] text-blue-600">Isi formulir pendaftaran di bawah ini</p>
                     </div>
                   </div>
 
                   <form onSubmit={handleRegisterSubmit} className="space-y-3">
                     <div className="text-left">
-                      <label className="block text-[10px] text-blue-400/80 font-bold uppercase tracking-wider mb-1">Nama Lengkap Tutor *</label>
+                      <label className="block text-[10px] text-blue-600 font-bold uppercase tracking-wider mb-1">Nama Lengkap Tutor *</label>
                       <input
                         type="text"
                         required
                         placeholder="Contoh: Sarah Wijaya, S.Pd."
                         value={regNama}
                         onChange={(e) => setRegNama(e.target.value)}
-                        className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
+                        className="w-full text-xs font-semibold p-2.5 bg-white border border-slate-200 rounded-xl focus:border-blue-500 focus:outline-none transition-all text-blue-950 placeholder:text-slate-400"
                       />
                     </div>
 
                     <div className="text-left">
-                      <label className="block text-[10px] text-blue-400/80 font-bold uppercase tracking-wider mb-1">ID Login / Username *</label>
+                      <label className="block text-[10px] text-blue-600 font-bold uppercase tracking-wider mb-1">ID Login / Username *</label>
                       <input
                         type="text"
                         required
                         placeholder="Contoh: sarah (huruf kecil & tanpa spasi)"
                         value={regIdLogin}
                         onChange={(e) => setRegIdLogin(e.target.value.toLowerCase().replace(/\s+/g, ""))}
-                        className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
+                        className="w-full text-xs font-semibold p-2.5 bg-white border border-slate-200 rounded-xl focus:border-blue-500 focus:outline-none transition-all text-blue-950 placeholder:text-slate-400"
                       />
                     </div>
 
                     <div className="text-left">
-                      <label className="block text-[10px] text-blue-400/80 font-bold uppercase tracking-wider mb-1">Password Keamanan *</label>
+                      <label className="block text-[10px] text-blue-600 font-bold uppercase tracking-wider mb-1">Password Keamanan *</label>
                       <div className="relative">
                         <input
                           type={showRegPassword ? "text" : "password"}
                           required
-                          placeholder="   Masukkan password Anda"
+                          placeholder="Masukkan password Anda"
                           value={regPassword}
                           onChange={(e) => setRegPassword(e.target.value)}
-                          className="w-full text-xs font-semibold p-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
+                          className="w-full text-xs font-semibold p-2.5 pr-10 bg-white border border-slate-200 rounded-xl focus:border-blue-500 focus:outline-none transition-all text-blue-950 placeholder:text-slate-400"
                         />
                         <button
                           type="button"
@@ -632,38 +633,38 @@ export default function App() {
                     </div>
 
                     <div className="text-left">
-                      <label className="block text-[10px] text-blue-400/80 font-bold uppercase tracking-wider mb-1">Nomor WhatsApp/Telepon *</label>
+                      <label className="block text-[10px] text-blue-600 font-bold uppercase tracking-wider mb-1">Nomor WhatsApp/Telepon *</label>
                       <input
                         type="text"
                         required
                         placeholder="Contoh: 081234567890"
                         value={regTelepon}
                         onChange={(e) => setRegTelepon(e.target.value.replace(/[^0-9]/g, ""))}
-                        className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
+                        className="w-full text-xs font-semibold p-2.5 bg-white border border-slate-200 rounded-xl focus:border-blue-500 focus:outline-none transition-all text-blue-950 placeholder:text-slate-400"
                       />
                     </div>
 
                     <div className="text-left">
-                      <label className="block text-[10px] text-blue-400/80 font-bold uppercase tracking-wider mb-1">Alamat Lengkap (Opsional)</label>
+                      <label className="block text-[10px] text-blue-600 font-bold uppercase tracking-wider mb-1">Alamat Lengkap (Opsional)</label>
                       <textarea
                         rows={2}
                         placeholder="Masukkan alamat tinggal Anda saat ini"
                         value={regAlamat}
                         onChange={(e) => setRegAlamat(e.target.value)}
-                        className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all resize-none"
+                        className="w-full text-xs font-semibold p-2.5 bg-white border border-slate-200 rounded-xl focus:border-blue-500 focus:outline-none transition-all resize-none text-blue-950 placeholder:text-slate-400"
                       />
                     </div>
 
-                    <div className="bg-amber-50 border border-amber-100 p-2.5 rounded-xl flex items-start gap-1.5 mt-1 text-left">
-                      <Info size={14} className="text-amber-600 shrink-0 mt-0.5" />
-                      <p className="text-[9.5px] text-amber-700 font-semibold leading-relaxed">
+                    <div className="bg-blue-50/70 border border-blue-100 p-2.5 rounded-xl flex items-start gap-1.5 mt-1 text-left">
+                      <Info size={14} className="text-blue-600 shrink-0 mt-0.5" />
+                      <p className="text-[9.5px] text-blue-700 font-semibold leading-relaxed">
                         Akun baru akan berstatus <span className="font-bold underline">Nonaktif</span> terlebih dahulu untuk verifikasi keamanan oleh Administrator sebelum dapat digunakan untuk login.
                       </p>
                     </div>
 
                     <button
                       type="submit"
-                      className="w-full bg-brand-600 hover:bg-brand-700 text-white p-2.5 font-bold text-xs rounded-xl shadow-md cursor-pointer transition-all active:scale-95 mt-2 flex items-center justify-center gap-1.5"
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white p-2.5 font-bold text-xs rounded-xl shadow-md cursor-pointer transition-all active:scale-95 mt-2 flex items-center justify-center gap-1.5"
                     >
                       <UserPlus size={14} />
                       Kirim Pendaftaran
@@ -672,7 +673,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setIsRegisterOpen(false)}
-                      className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 text-xs font-bold rounded-xl cursor-pointer transition-all active:scale-95"
+                      className="w-full bg-white hover:bg-slate-100 text-blue-600 border border-slate-200 p-2 text-xs font-bold rounded-xl cursor-pointer transition-all active:scale-95"
                     >
                       Kembali ke Login
                     </button>
@@ -681,66 +682,66 @@ export default function App() {
               ) : (
                 <>
                   {/* Login Card */}
-                  <div className="bg-slate-100 p-10 rounded-3xl">
+                  <div className="bg-slate-50 p-6 ">
                     
-                    <form onSubmit={handleLoginSubmit} className="space-y-4">
-                      <div className="text-left">
-                        <input
-                          type="text"
-                          id="login-username-input"
-                          required
-                          placeholder="Masukkan ID login Anda"
-                          value={loginId}
-                          onChange={(e) => setLoginId(e.target.value)}
-                          className="w-full text-xs font-semibold p-3 bg-slate-50 border-2 border-slate-200 rounded-3xl focus:border-brand-500 focus:outline-none transition-all"
-                        />
-                      </div>
+                    <form onSubmit={handleLoginSubmit} className="space-y-4">
+                      <div className="text-left">
+                        <input
+                          type="text"
+                          id="login-username-input"
+                          required
+                          placeholder="Masukkan ID login anda"
+                          value={loginId}
+                          onChange={(e) => setLoginId(e.target.value)}
+                          className="w-full text-xs font-semibold p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
+                        />
+                      </div>
 
-                      <div className="text-left">
-                        <div className="relative">
-                          <input
-                            type={showLoginPassword ? "text" : "password"}
-                            id="login-password-input"
-                            required
-                            placeholder="Masukkan password Anda"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                          className="w-full text-xs font-semibold p-3 bg-slate-50 border-2 border-slate-200 rounded-3xl focus:border-brand-500 focus:outline-none transition-all"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowLoginPassword(!showLoginPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer transition-all"
-                            title={showLoginPassword ? "Sembunyikan password" : "Tampilkan password"}
-                          >
-                            {showLoginPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                          </button>
-                        </div>
-                      </div>
+                      <div className="text-left">
+                        <div className="relative">
+                          <input
+                            type={showLoginPassword ? "text" : "password"}
+                            id="login-password-input"
+                            required
+                            placeholder="Masukkan password Anda"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="w-full text-xs font-semibold p-3 pr-10 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowLoginPassword(!showLoginPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer transition-all"
+                            title={showLoginPassword ? "Sembunyikan password" : "Tampilkan password"}
+                          >
+                            {showLoginPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
+                      </div>
 
-                      <button
-                        type="submit"
-                        id="login-submit-btn"
-                        className="w-full bg-blue-500 hover:bg-blue-700 text-white p-3 font-bold text-xs rounded-3xl shadow-md cursor-pointer transition-all active:scale-95 mt-2"
-                      >
-                        Masuk Sistem
-                      </button>
-                    </form>
+                      <button
+                        type="submit"
+                        id="login-submit-btn"
+                        className="w-full bg-brand-600 hover:bg-brand-700 text-white p-3 font-bold text-xs rounded-xl shadow-md cursor-pointer transition-all active:scale-95 mt-2"
+                      >
+                        Masuk Sistem
+                      </button>
+                    </form>
 
                     {/* CTA Register / Sign Up Section */}
-                  <div className="mt-6 pt-6 border-t border-blue-200 text-center">
-                    <p className="text-xs text-slate-500">
-                      Belum punya akun?  {'      '}
+                    <div className="mt-4 pt-4 border-t border-slate-100 text-center">
+                      <p className="text-[10.5px] text-slate-400 font-medium">Belum punya akun</p>
                       <button
                         type="button"
                         onClick={() => setIsRegisterOpen(true)}
-                        className="font-extrabold text-blue-500 hover:text-blue-700 hover:underline underline-offset-4 transition-all duration-200 active:scale-95"
+                        className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-extrabold text-brand-600 hover:text-brand-700 transition-all cursor-pointer active:scale-95"
                       >
-                        Registrasi sekarang!
+                        <UserPlus size={13} />
+                        Registrasi Sekarang
                       </button>
-                    </p>
+                    </div>
                   </div>
-                  </div>
+
                 </>
               )}
 
@@ -751,15 +752,16 @@ export default function App() {
             <div className="flex-grow shrink-0 animate-fade-in flex flex-col relative z-10 w-full min-h-full bg-white/40 md:bg-white/60 md:backdrop-blur-xl md:rounded-2xl md:shadow-[0_8px_32px_rgba(0,0,0,0.02)] md:border md:border-white/80 overflow-hidden">
               
               {/* Core Header (Sticky header containing sign-out & current user role) */}
-              <div className="bg-blue-500 backdrop-blur-md border-b border-blue-500 px-4 py-3 flex items-center justify-between sticky top-0 z-40 shrink-0">
+              <div className="bg-brand-500 backdrop-blur-md border-b border-brand-500 px-4 py-3 flex items-center justify-between sticky top-0 z-40 shrink-0">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full shrink-0" />
-                  <span className="text-[10.5px] font-bold text-white tracking-tight uppercase truncate">
+                  <span className="text-[10.5px] font-bold text-slate-500 tracking-tight uppercase truncate">
                     {userSession.role === "admin" ? "Sistem Admin" : "Sesi Tutor"}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">
+
                   <button
                     id="auth-logout-btn"
                     onClick={handleLogout}
@@ -909,7 +911,7 @@ export default function App() {
                 >
                   <option value="">-- Pilih Program Belajar --</option>
                   {db.programs.filter(p => p.status === "aktif").map((p) => (
-                    <option key={p.id} value={p.id}>{p.nama} </option>
+                    <option key={p.id} value={p.id}>{p.nama} ({formatRupiah(p.tarifSiswa)} / Sesi)</option>
                   ))}
                 </select>
               </div>
@@ -928,6 +930,17 @@ export default function App() {
                     <option key={t.id} value={t.id}>{t.nama}</option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-[10.5px] text-slate-400 font-bold uppercase tracking-wider mb-1">Catatan Pertemuan</label>
+                <textarea
+                  id="quick-sess-notes"
+                  placeholder="Contoh: Pembahasan PR Matematika bab 4"
+                  value={sessCatatan}
+                  onChange={(e) => setSessCatatan(e.target.value)}
+                  className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none h-16 resize-none"
+                />
               </div>
 
               <div className="flex gap-2 pt-3 border-t border-slate-50">
