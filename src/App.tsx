@@ -753,7 +753,7 @@ export default function App() {
               <div className="bg-brand-500 backdrop-blur-md border-b border-brand-500 px-4 py-3 flex items-center justify-between sticky top-0 z-40 shrink-0">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full shrink-0" />
-                  <span className="text-[10.5px] font-bold text-slate-500 tracking-tight uppercase truncate">
+                  <span className="text-[10.5px] font-bold text-slate-50 tracking-tight uppercase truncate">
                     {userSession.role === "admin" ? "Sistem Admin" : "Sesi Tutor"}
                   </span>
                 </div>
