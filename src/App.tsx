@@ -554,11 +554,9 @@ export default function App() {
               {/* Logo / Brand Header */}
               <div className="text-center mb-6 relative z-10">
               <div className="w-80 h-80 mx-auto mb-4 flex items-center justify-center">
-                  <img 
-                    src="public/public13.png" 
-                    alt="Logo Rumah Belajar" 
-                    className="w-full h-full object-cover"
-                  />
+                <div className="flex items-center gap-2.5">
+                <img src="public13.png" alt="logo" className="w-80 h-80 object-contain" referrerPolicy="no-referrer" />    
+                </div>
                 </div>
                 <h1 className="text-2xl font-extrabold text-brand-700 tracking-tight font-display uppercase">
                   Lets Get Started !
