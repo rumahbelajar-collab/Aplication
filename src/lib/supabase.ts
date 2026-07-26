@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
-import { Database } from "./db";
+import { Database, ensureDatabaseDefaults } from "./db";
+import { Tutor, Siswa } from "../types";
 
 // Configuration from env or defaults
 const metaEnv = (import.meta as any).env || {};
@@ -135,6 +136,42 @@ export async function pushToSupabase(db: Database, isForce = false): Promise<boo
       return false;
     }
 
+    // Best-effort push to relational tables 'tutor' and 'siswa' if they exist in Supabase
+    if (db.tutors && db.tutors.length > 0) {
+      try {
+        const tutorPayload = db.tutors.map(t => ({
+          id: t.id,
+          nama: t.nama,
+          id_login: t.idLogin,
+          password: t.password || "123",
+          status: t.status || "aktif",
+          telepon: t.telepon || "",
+          alamat: t.alamat || "",
+          tanggal_bergabung: t.tanggalBergabung || new Date().toISOString().slice(0, 10)
+        }));
+        await supabase.from("tutor").upsert(tutorPayload, { onConflict: "id" });
+      } catch (e) {
+        // Ignored if table 'tutor' does not exist
+      }
+    }
+
+    if (db.students && db.students.length > 0) {
+      try {
+        const studentPayload = db.students.map(s => ({
+          id: s.id,
+          nama: s.nama,
+          program_id: s.programId || "",
+          status: s.status || "aktif",
+          telepon_orang_tua: s.teleponOrangTua || "",
+          alamat: s.alamat || "",
+          tanggal_daftar: s.tanggalDaftar || new Date().toISOString().slice(0, 10)
+        }));
+        await supabase.from("siswa").upsert(studentPayload, { onConflict: "id" });
+      } catch (e) {
+        // Ignored if table 'siswa' does not exist
+      }
+    }
+
     updateSyncState({ 
       status: "success", 
       lastSynced: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " WIB" 
@@ -148,12 +185,14 @@ export async function pushToSupabase(db: Database, isForce = false): Promise<boo
 }
 
 /**
- * Pulls the database state from Supabase table `rumah_belajar_db`
+ * Pulls the database state from Supabase table `rumah_belajar_db` and merges relational tables (tutor, siswa)
  */
 export async function pullFromSupabase(): Promise<Database | null> {
   updateSyncState({ status: "syncing", errorMessage: null });
   
   try {
+    let dbResult: Database | null = null;
+
     const { data, error } = await supabase
       .from("rumah_belajar_db")
       .select("data")
@@ -161,35 +200,102 @@ export async function pullFromSupabase(): Promise<Database | null> {
       .single();
 
     if (error) {
-      console.warn("Supabase pull warning:", error);
+      console.warn("Supabase main_v1 pull warning:", error);
       if (error.code === "PGRST116") {
-        // Row not found, but table exists! This is fine, we will push our current data.
         updateSyncState({ status: "idle", errorMessage: "Data di Supabase masih kosong." });
-        return null;
-      }
-      
-      const isMissingTable = error.message?.includes("relation") || 
-        error.message?.includes("does not exist") || 
-        error.message?.includes("schema cache") || 
-        error.message?.includes("Could not find the table");
-      if (isMissingTable) {
-        updateSyncState({ status: "table_missing", errorMessage: "Tabel 'rumah_belajar_db' belum terbuat di Supabase." });
       } else {
-        updateSyncState({ status: "error", errorMessage: error.message || "Gagal mengambil data dari Supabase." });
+        const isMissingTable = error.message?.includes("relation") || 
+          error.message?.includes("does not exist") || 
+          error.message?.includes("schema cache") || 
+          error.message?.includes("Could not find the table");
+        if (isMissingTable) {
+          updateSyncState({ status: "table_missing", errorMessage: "Tabel 'rumah_belajar_db' belum terbuat di Supabase." });
+          return null;
+        }
       }
-      return null;
     }
 
     if (data && data.data) {
-      updateSyncState({ 
-        status: "success", 
-        lastSynced: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " WIB" 
-      });
-      return data.data as Database;
+      dbResult = ensureDatabaseDefaults(data.data);
+    } else {
+      // Check local storage fallback if main_v1 is empty or missing
+      const localRaw = safeGetItem("rumah_belajar_db_v2");
+      if (localRaw) {
+        try {
+          dbResult = ensureDatabaseDefaults(JSON.parse(localRaw));
+        } catch (e) {}
+      }
+      if (!dbResult) {
+        dbResult = ensureDatabaseDefaults(null);
+      }
     }
+
+    // Intelligently merge SQL records from 'tutor' relational table if available
+    try {
+      const { data: tutorRows } = await supabase.from("tutor").select("*");
+      if (tutorRows && Array.isArray(tutorRows) && tutorRows.length > 0) {
+        const existingTutors = [...dbResult.tutors];
+        tutorRows.forEach((r: any) => {
+          const tid = r.id || r.id_login;
+          if (!tid) return;
+          const idx = existingTutors.findIndex(t => t.id === tid || t.idLogin.toLowerCase() === (r.id_login || "").toLowerCase());
+          const mappedTutor: Tutor = {
+            id: tid,
+            nama: r.nama || "Tutor",
+            idLogin: r.id_login || tid,
+            password: r.password || "123",
+            status: r.status === "nonaktif" ? "nonaktif" : "aktif",
+            telepon: r.telepon || "",
+            alamat: r.alamat || "",
+            tanggalBergabung: r.tanggal_bergabung || (r.created_at ? r.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10))
+          };
+          if (idx >= 0) {
+            existingTutors[idx] = { ...existingTutors[idx], ...mappedTutor };
+          } else {
+            existingTutors.push(mappedTutor);
+          }
+        });
+        dbResult.tutors = existingTutors;
+      }
+    } catch (e) {
+      // Ignored if table 'tutor' doesn't exist
+    }
+
+    // Intelligently merge SQL records from 'siswa' relational table if available
+    try {
+      const { data: siswaRows } = await supabase.from("siswa").select("*");
+      if (siswaRows && Array.isArray(siswaRows) && siswaRows.length > 0) {
+        const existingStudents = [...dbResult.students];
+        siswaRows.forEach((r: any) => {
+          if (!r.id) return;
+          const idx = existingStudents.findIndex(s => s.id === r.id);
+          const mappedStudent: Siswa = {
+            id: r.id,
+            nama: r.nama || "Siswa",
+            programId: r.program_id || "",
+            status: r.status === "nonaktif" ? "nonaktif" : "aktif",
+            teleponOrangTua: r.telepon_orang_tua || "",
+            alamat: r.alamat || "",
+            tanggalDaftar: r.tanggal_daftar || (r.created_at ? r.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10))
+          };
+          if (idx >= 0) {
+            existingStudents[idx] = { ...existingStudents[idx], ...mappedStudent };
+          } else {
+            existingStudents.push(mappedStudent);
+          }
+        });
+        dbResult.students = existingStudents;
+      }
+    } catch (e) {
+      // Ignored if table 'siswa' doesn't exist
+    }
+
+    updateSyncState({ 
+      status: "success", 
+      lastSynced: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " WIB" 
+    });
     
-    updateSyncState({ status: "idle" });
-    return null;
+    return dbResult;
   } catch (err: any) {
     console.warn("Supabase network warning during pull:", err);
     updateSyncState({ status: "error", errorMessage: err.message || "Koneksi ke Supabase terputus." });

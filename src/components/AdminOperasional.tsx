@@ -101,7 +101,7 @@ export default function AdminOperasional({
     
     // Clear student fields
     setStudentName("");
-    setStudentProgram(db.programs[0]?.id || "");
+    setStudentProgram(db.programs.filter(p => p.status === "aktif")[0]?.id || db.programs[0]?.id || "");
     setStudentPhone("");
     setStudentAddress("");
     setStudentStatus("aktif");
@@ -202,7 +202,7 @@ export default function AdminOperasional({
 
     if (activeSubTab === "siswa") {
       if (!studentName.trim() || !studentPhone.trim()) {
-        alert("Nama dan Telepon wajib diisi.");
+        alert("Nama dan No. HP Ortu wajib diisi.");
         return;
       }
       if (editingItem) {
@@ -210,31 +210,40 @@ export default function AdminOperasional({
         nextDb.students = nextDb.students.map(s => s.id === editingItem.id ? {
           ...s,
           nama: studentName,
-          programId: "",
+          programId: studentProgram,
           status: studentStatus,
           teleponOrangTua: studentPhone,
           alamat: studentAddress
         } : s);
       } else {
         // Add new student
-        const maxIdNum = nextDb.students.reduce((max, s) => {
-          const match = s.id.match(/^(?:S-|RBS)(\d+)$/);
+        const studentsList = Array.isArray(nextDb.students) ? nextDb.students : [];
+        let maxIdNum = studentsList.reduce((max, s) => {
+          const match = s.id ? s.id.match(/^(?:S-|RBS)(\d+)$/) : null;
           if (match) {
             const num = parseInt(match[1], 10);
             return num > max ? num : max;
           }
           return max;
         }, 0);
-        const newId = `RBS${String(maxIdNum + 1).padStart(2, "0")}`;
-        nextDb.students.push({
-          id: newId,
-          nama: studentName,
-          programId: "",
-          status: studentStatus,
-          teleponOrangTua: studentPhone,
-          alamat: studentAddress,
-          tanggalDaftar: getTodayDateString()
-        });
+        let newIdNum = maxIdNum + 1;
+        let newId = `RBS${String(newIdNum).padStart(2, "0")}`;
+        while (studentsList.some(s => s.id === newId)) {
+          newIdNum++;
+          newId = `RBS${String(newIdNum).padStart(2, "0")}`;
+        }
+        nextDb.students = [
+          ...studentsList,
+          {
+            id: newId,
+            nama: studentName,
+            programId: studentProgram,
+            status: studentStatus,
+            teleponOrangTua: studentPhone,
+            alamat: studentAddress,
+            tanggalDaftar: getTodayDateString()
+          }
+        ];
       }
     } 
     
@@ -245,7 +254,7 @@ export default function AdminOperasional({
       }
       
       // Validate unique ID Login
-      const loginCheck = nextDb.tutors.find(t => t.idLogin.toLowerCase() === tutorLogin.toLowerCase() && (!editingItem || t.id !== editingItem.id));
+      const loginCheck = (nextDb.tutors || []).find(t => t.idLogin.toLowerCase() === tutorLogin.toLowerCase() && (!editingItem || t.id !== editingItem.id));
       if (loginCheck) {
         alert("ID Login sudah digunakan oleh Tutor lain. Silakan tentukan ID Login yang unik.");
         return;
@@ -253,7 +262,7 @@ export default function AdminOperasional({
 
       if (editingItem) {
         // Edit tutor
-        nextDb.tutors = nextDb.tutors.map(t => t.id === editingItem.id ? {
+        nextDb.tutors = (nextDb.tutors || []).map(t => t.id === editingItem.id ? {
           ...t,
           nama: tutorName,
           idLogin: tutorLogin,
@@ -264,25 +273,34 @@ export default function AdminOperasional({
         } : t);
       } else {
         // Add new tutor
-        const maxIdNum = nextDb.tutors.reduce((max, t) => {
-          const match = t.id.match(/^(?:T-|RBT)(\d+)$/);
+        const tutorsList = Array.isArray(nextDb.tutors) ? nextDb.tutors : [];
+        let maxIdNum = tutorsList.reduce((max, t) => {
+          const match = t.id ? t.id.match(/^(?:T-|RBT)(\d+)$/) : null;
           if (match) {
             const num = parseInt(match[1], 10);
             return num > max ? num : max;
           }
           return max;
         }, 0);
-        const newId = `RBT${String(maxIdNum + 1).padStart(2, "0")}`;
-        nextDb.tutors.push({
-          id: newId,
-          nama: tutorName,
-          idLogin: tutorLogin,
-          password: tutorPwd,
-          status: tutorStatus,
-          telepon: tutorPhone,
-          alamat: tutorAddress,
-          tanggalBergabung: getTodayDateString()
-        });
+        let newIdNum = maxIdNum + 1;
+        let newId = `RBT${String(newIdNum).padStart(2, "0")}`;
+        while (tutorsList.some(t => t.id === newId)) {
+          newIdNum++;
+          newId = `RBT${String(newIdNum).padStart(2, "0")}`;
+        }
+        nextDb.tutors = [
+          ...tutorsList,
+          {
+            id: newId,
+            nama: tutorName,
+            idLogin: tutorLogin,
+            password: tutorPwd,
+            status: tutorStatus,
+            telepon: tutorPhone,
+            alamat: tutorAddress,
+            tanggalBergabung: getTodayDateString()
+          }
+        ];
       }
     } 
     
@@ -390,7 +408,7 @@ export default function AdminOperasional({
   };
 
   return (
-    <div id="admin-operasional-container" className="px-2 py-4 pb-20">
+    <div id="admin-operasional-container" className="px-4 py-4 pb-20">
       {/* Search & Add Section */}
       <div className="flex items-center gap-2 mb-4">
         <div className="relative flex-1">
@@ -401,13 +419,13 @@ export default function AdminOperasional({
             placeholder={`Cari ${activeSubTab === "siswa" ? "siswa" : activeSubTab === "tutor" ? "tutor" : activeSubTab === "program" ? "program" : "jadwal"}...`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full text-xs font-semibold pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500/20 transition-all shadow-2xs"
+            className="w-full text-xs font-semibold pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500/20 transition-all shadow-2xs"
           />
         </div>
         <button
           id="op-add-btn"
           onClick={handleOpenAdd}
-          className="flex items-center gap-1.5 px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-lg shadow-md transition-all active:scale-95 cursor-pointer shrink-0"
+          className="flex items-center gap-1.5 px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer shrink-0"
         >
           <Plus size={16} />
           Tambah
@@ -415,7 +433,7 @@ export default function AdminOperasional({
       </div>
 
       {/* OPERATIONAL SUBTABS */}
-      <div className="grid grid-cols-4 bg-white p-1 rounded-lg border border-slate-100 shadow-2xs mb-5">
+      <div className="grid grid-cols-4 bg-white p-1 rounded-xl border border-slate-100 shadow-2xs mb-5">
         <button
           id="subtab-siswa"
           onClick={() => { setActiveSubTab("siswa"); setSearchQuery(""); }}
@@ -469,7 +487,7 @@ export default function AdminOperasional({
               <div 
                 key={siswa.id} 
                 id={`student-card-${siswa.id}`}
-                className="bg-white p-4 rounded-lg border border-slate-100 shadow-xs relative flex flex-col gap-3 group hover:border-brand-200 transition-all"
+                className="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs relative flex flex-col gap-3 group hover:border-brand-200 transition-all"
               >
                 {/* ID badge & active badge */}
                 <div className="flex justify-between items-center">
@@ -488,7 +506,7 @@ export default function AdminOperasional({
                   <div className="flex items-center justify-between gap-2">
                     <h4 className="font-extrabold text-slate-800 text-sm tracking-tight">{siswa.nama}</h4>
                     {activeProgram && (
-                      <span className="text-[10px] font-extrabold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-md">
+                      <span className="text-[10px] font-extrabold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-md border border-brand-100">
                         {activeProgram.nama}
                       </span>
                     )}
@@ -508,9 +526,9 @@ export default function AdminOperasional({
                 {/* Balance status / quick action */}
                 <div className="flex justify-between items-center pt-2.5 border-t border-slate-50 mt-1">
                   <div>
-                    <p className="text-[9.5px] text-slate-400 font-semibold uppercase tracking-wider">Jumlah Tagihan</p>
+                    <p className="text-[9.5px] text-slate-400 font-semibold uppercase tracking-wider">Saldo Rekening</p>
                     <p className={`text-xs font-black font-mono ${currentBalance > 0 ? "text-rose-600" : "text-emerald-600"}`}>
-                      {currentBalance > 0 ? `Tagihan: ${formatRupiah(currentBalance)}` : currentBalance < 0 ? `Lebih: ${formatRupiah(Math.abs(currentBalance))}` : "Lunas: Rp 0"}
+                      {currentBalance > 0 ? `Tagihan: ${formatRupiah(currentBalance)}` : currentBalance < 0 ? `Lebih: ${formatRupiah(Math.abs(currentBalance))}` : "Lunas / Rp 0"}
                     </p>
                   </div>
 
@@ -559,7 +577,7 @@ export default function AdminOperasional({
               <div 
                 key={tutor.id} 
                 id={`tutor-card-${tutor.id}`}
-                className="bg-white p-5 rounded-lg border border-slate-100 shadow-xs relative flex flex-col gap-3 hover:border-brand-200 transition-all"
+                className="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs relative flex flex-col gap-3 hover:border-brand-200 transition-all"
               >
                 <div className="flex justify-between items-center">
                   <span className="text-[9.5px] font-black font-mono bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
@@ -589,7 +607,7 @@ export default function AdminOperasional({
                 </div>
 
                 {/* Balances summary Grid */}
-                <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-lg">
+                <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-xl">
                   <div>
                     <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Honor Terutang</span>
                     <span className="text-[11px] font-black text-indigo-600 font-mono">
@@ -610,7 +628,7 @@ export default function AdminOperasional({
                     onClick={() => onNavigateToTab("keuangan", "honor", tutor.id)}
                     className="text-[10.5px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2.5 py-1.5 rounded-lg cursor-pointer transition-all"
                   >
-                    Buku Honor
+                    Buka Buku Honor
                   </button>
 
                   <div className="flex items-center gap-1">
@@ -647,7 +665,7 @@ export default function AdminOperasional({
             <div 
               key={program.id} 
               id={`program-card-${program.id}`}
-              className="bg-white p-5 rounded-lg border border-slate-100 shadow-xs relative flex flex-col gap-3 hover:border-brand-200 transition-all"
+              className="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs relative flex flex-col gap-3 hover:border-brand-200 transition-all"
             >
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-1.5">
@@ -668,6 +686,9 @@ export default function AdminOperasional({
               <div>
                 <h4 className="font-extrabold text-slate-800 text-sm tracking-tight leading-snug">{program.nama}</h4>
                 <p className="text-[10.5px] text-slate-400 font-medium mt-1">Mata Pelajaran: <span className="font-semibold text-slate-600">{program.mapel}</span> | Durasi: <span className="font-semibold text-slate-600">{program.durasi} menit</span></p>
+                {program.deskripsi && (
+                  <p className="text-[11px] text-slate-500 mt-1.5 italic line-clamp-2 leading-relaxed bg-slate-50 p-2 rounded-lg">{program.deskripsi}</p>
+                )}
               </div>
 
               {/* Rates Details */}
@@ -729,7 +750,7 @@ export default function AdminOperasional({
                 <div 
                   key={schedule.id} 
                   id={`schedule-card-${schedule.id}`}
-                  className="bg-white p-5 rounded-lg border border-slate-100 shadow-xs relative flex flex-col gap-3 hover:border-brand-200 transition-all"
+                  className="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs relative flex flex-col gap-3 hover:border-brand-200 transition-all"
                 >
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-1.5">
@@ -980,9 +1001,9 @@ export default function AdminOperasional({
                         onChange={(e) => setProgLevel(e.target.value as any)}
                         className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none"
                       >
-                        <option value="TK/RA">TK/RA</option>
-                        <option value="SD/MI">SD/MI</option>
-                        <option value="SMP/MTs">SMP/MTs</option>
+                        <option value="SD">SD</option>
+                        <option value="SMP">SMP</option>
+                        <option value="SMA">SMA</option>
                         <option value="Umum">Umum</option>
                       </select>
                     </div>
@@ -1098,6 +1119,11 @@ export default function AdminOperasional({
                         );
                       })}
                     </div>
+                    {!editingItem && (
+                      <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed font-medium">
+                        💡 Anda dapat memilih lebih dari satu hari untuk membuat jadwal bimbingan sekaligus dengan tutor & siswa yang sama.
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-[10.5px] text-slate-400 font-bold uppercase tracking-wider mb-1">Waktu Sesi (Jam) *</label>

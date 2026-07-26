@@ -97,29 +97,35 @@ export function safeSetItem(key: string, value: string): void {
   }
 }
 
+export function ensureDatabaseDefaults(parsed: any): Database {
+  if (!parsed || typeof parsed !== "object") {
+    return generateCleanDatabase();
+  }
+  return {
+    programs: Array.isArray(parsed.programs) ? parsed.programs : [],
+    students: Array.isArray(parsed.students) ? parsed.students : [],
+    tutors: Array.isArray(parsed.tutors) ? parsed.tutors : [],
+    sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [],
+    studentLedger: Array.isArray(parsed.studentLedger) ? parsed.studentLedger : [],
+    payments: Array.isArray(parsed.payments) ? parsed.payments : [],
+    tutorLedger: Array.isArray(parsed.tutorLedger) ? parsed.tutorLedger : [],
+    slips: Array.isArray(parsed.slips) ? parsed.slips : [],
+    kas: Array.isArray(parsed.kas) ? parsed.kas : [],
+    otherIncomes: Array.isArray(parsed.otherIncomes) ? parsed.otherIncomes : [],
+    attendanceReports: Array.isArray(parsed.attendanceReports) ? parsed.attendanceReports : [],
+    raports: Array.isArray(parsed.raports) ? parsed.raports : [],
+    schedules: Array.isArray(parsed.schedules) ? parsed.schedules : [],
+    broadcastMessage: parsed.broadcastMessage ?? "📢 PENGUMUMAN TUTOR: Mohon lakukan serah terima uang titipan pembayaran siswa kepada Staf Administrasi dan catat riwayat pertemuan secara tertib. Terima kasih!",
+    adminPassword: parsed.adminPassword ?? "admin123"
+  };
+}
+
 export function getDatabase(): Database {
   try {
     const raw = safeGetItem(DB_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      // Ensure all arrays exist
-      return {
-        programs: parsed.programs || [],
-        students: parsed.students || [],
-        tutors: parsed.tutors || [],
-        sessions: parsed.sessions || [],
-        studentLedger: parsed.studentLedger || [],
-        payments: parsed.payments || [],
-        tutorLedger: parsed.tutorLedger || [],
-        slips: parsed.slips || [],
-        kas: parsed.kas || [],
-        otherIncomes: parsed.otherIncomes || [],
-        attendanceReports: parsed.attendanceReports || [],
-        raports: parsed.raports || [],
-        schedules: parsed.schedules || [],
-        broadcastMessage: parsed.broadcastMessage ?? "📢 PENGUMUMAN TUTOR: Mohon lakukan serah terima uang titipan pembayaran siswa kepada Staf Administrasi dan catat riwayat pertemuan secara tertib. Terima kasih!",
-        adminPassword: parsed.adminPassword ?? "admin123"
-      };
+      return ensureDatabaseDefaults(parsed);
     }
   } catch (e) {
     console.error("Error loading database, resetting", e);
