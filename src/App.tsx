@@ -594,71 +594,65 @@ export default function App() {
           {/* A. NOT LOGGED IN - SHOW LOGIN PAGE */}
           {!userSession ? (
             <div id="login-screen" className="flex-1 flex flex-col justify-center items-center p-6 animate-fade-in my-auto">
-              <div className="w-full max-w-sm bg-white/60 backdrop-blur-3xl p-8 rounded-2xl border border-white/80 shadow-[0_8px_32px_rgba(0,0,0,0.04)] relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-brand-200/50 rounded-full blur-[40px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
               {/* Logo / Brand Header */}
               <div className="text-center mb-6 relative z-10">
-                <div className="w-16 h-16 bg-gradient-to-tr from-brand-600 to-brand-400 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-brand-200 mb-4">
-                  <GraduationCap size={32} className="text-white" />
+              <div className="w-80 h-80 mx-auto mb-4 flex items-center justify-center">
+                <div className="flex items-center gap-2.5">
+                <img src="public13.png" alt="logo" className="w-80 h-80 object-contain" referrerPolicy="no-referrer" />    
                 </div>
-                <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight font-display uppercase">Rumah Belajar</h1>
-                <p className="text-xs text-slate-500 font-medium mt-1">SIM Operasional, Administrasi, & Keuangan</p>
-                {!isRegisterOpen && (
-                  <button
-                    type="button"
-                    onClick={handleInstallApp}
-                    className="mt-4 inline-flex items-center gap-1.5 text-[10px] font-black text-brand-600 bg-brand-50 hover:bg-brand-100 px-4 py-2 rounded-full border border-brand-100 cursor-pointer transition-all active:scale-95"
-                  >
-                    <Download size={14} />
-                    Pasang Aplikasi Full Screen
-                  </button>
-                )}
+                </div>
+                <h1 className="text-2xl font-extrabold text-brand-700 tracking-tight font-display uppercase">
+                  Lets Get Started !
+                </h1>
+                <p className="text-xs font-semibold text-brand-500 mt-1">
+                  Aplikasi sistemasi & Automatisasi rumah belajar
+                </p>
               </div>
 
               {isRegisterOpen ? (
                 /* Tutor Registration Card */
-                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm animate-fade-in">
-                  <div className="flex items-center gap-2 mb-4 border-b border-slate-100 pb-3">
+                <div className="bg-slate-50 p-6 rounded-3xl animate-fade-in">
+                  <div className="flex items-center gap-2 mb-4 border-b border-slate-200 pb-3">
                     <button 
                       type="button" 
                       onClick={() => setIsRegisterOpen(false)}
-                      className="text-slate-400 hover:text-slate-600 transition-all p-1 hover:bg-slate-100 rounded-full"
+                      className="text-blue-400 hover:text-blue-600 transition-all p-1 hover:bg-slate-200 rounded-full"
                     >
                       <ArrowLeft size={16} />
                     </button>
                     <div className="text-left">
-                      <h2 className="text-xs font-extrabold text-slate-800 tracking-tight uppercase">Pendaftaran Tutor Baru</h2>
-                      <p className="text-[10px] text-slate-400">Isi formulir pendaftaran di bawah ini</p>
+                      <h2 className="text-xs font-extrabold text-blue-900 tracking-tight uppercase">Pendaftaran Tutor Baru</h2>
+                      <p className="text-[10px] text-blue-600">Isi formulir pendaftaran di bawah ini</p>
                     </div>
                   </div>
 
                   <form onSubmit={handleRegisterSubmit} className="space-y-3">
                     <div className="text-left">
-                      <label className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Nama Lengkap Tutor *</label>
+                      <label className="block text-[10px] text-blue-600 font-bold uppercase tracking-wider mb-1">Nama Lengkap Tutor *</label>
                       <input
                         type="text"
                         required
                         placeholder="Contoh: Sarah Wijaya, S.Pd."
                         value={regNama}
                         onChange={(e) => setRegNama(e.target.value)}
-                        className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
+                        className="w-full text-xs font-semibold p-2.5 bg-white border border-slate-200 rounded-xl focus:border-blue-500 focus:outline-none transition-all text-blue-950 placeholder:text-slate-400"
                       />
                     </div>
 
                     <div className="text-left">
-                      <label className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">ID Login / Username *</label>
+                      <label className="block text-[10px] text-blue-600 font-bold uppercase tracking-wider mb-1">ID Login / Username *</label>
                       <input
                         type="text"
                         required
                         placeholder="Contoh: sarah (huruf kecil & tanpa spasi)"
                         value={regIdLogin}
                         onChange={(e) => setRegIdLogin(e.target.value.toLowerCase().replace(/\s+/g, ""))}
-                        className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
+                        className="w-full text-xs font-semibold p-2.5 bg-white border border-slate-200 rounded-xl focus:border-blue-500 focus:outline-none transition-all text-blue-950 placeholder:text-slate-400"
                       />
                     </div>
 
                     <div className="text-left">
-                      <label className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Password Keamanan *</label>
+                      <label className="block text-[10px] text-blue-600 font-bold uppercase tracking-wider mb-1">Password Keamanan *</label>
                       <div className="relative">
                         <input
                           type={showRegPassword ? "text" : "password"}
@@ -666,12 +660,12 @@ export default function App() {
                           placeholder="Masukkan password Anda"
                           value={regPassword}
                           onChange={(e) => setRegPassword(e.target.value)}
-                          className="w-full text-xs font-semibold p-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
+                          className="w-full text-xs font-semibold p-2.5 pr-10 bg-white border border-slate-200 rounded-xl focus:border-blue-500 focus:outline-none transition-all text-blue-950 placeholder:text-slate-400"
                         />
                         <button
                           type="button"
                           onClick={() => setShowRegPassword(!showRegPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer transition-all"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-400 hover:text-blue-600 focus:outline-none cursor-pointer transition-all"
                           title={showRegPassword ? "Sembunyikan password" : "Tampilkan password"}
                         >
                           {showRegPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -680,38 +674,38 @@ export default function App() {
                     </div>
 
                     <div className="text-left">
-                      <label className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Nomor WhatsApp/Telepon *</label>
+                      <label className="block text-[10px] text-blue-600 font-bold uppercase tracking-wider mb-1">Nomor WhatsApp/Telepon *</label>
                       <input
                         type="text"
                         required
                         placeholder="Contoh: 081234567890"
                         value={regTelepon}
                         onChange={(e) => setRegTelepon(e.target.value.replace(/[^0-9]/g, ""))}
-                        className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
+                        className="w-full text-xs font-semibold p-2.5 bg-white border border-slate-200 rounded-xl focus:border-blue-500 focus:outline-none transition-all text-blue-950 placeholder:text-slate-400"
                       />
                     </div>
 
                     <div className="text-left">
-                      <label className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Alamat Lengkap (Opsional)</label>
+                      <label className="block text-[10px] text-blue-600 font-bold uppercase tracking-wider mb-1">Alamat Lengkap (Opsional)</label>
                       <textarea
                         rows={2}
                         placeholder="Masukkan alamat tinggal Anda saat ini"
                         value={regAlamat}
                         onChange={(e) => setRegAlamat(e.target.value)}
-                        className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all resize-none"
+                        className="w-full text-xs font-semibold p-2.5 bg-white border border-slate-200 rounded-xl focus:border-blue-500 focus:outline-none transition-all resize-none text-blue-950 placeholder:text-slate-400"
                       />
                     </div>
 
-                    <div className="bg-amber-50 border border-amber-100 p-2.5 rounded-xl flex items-start gap-1.5 mt-1 text-left">
-                      <Info size={14} className="text-amber-600 shrink-0 mt-0.5" />
-                      <p className="text-[9.5px] text-amber-700 font-semibold leading-relaxed">
+                    <div className="bg-blue-50/70 border border-blue-100 p-2.5 rounded-xl flex items-start gap-1.5 mt-1 text-left">
+                      <Info size={14} className="text-blue-600 shrink-0 mt-0.5" />
+                      <p className="text-[9.5px] text-blue-700 font-semibold leading-relaxed">
                         Akun baru akan berstatus <span className="font-bold underline">Nonaktif</span> terlebih dahulu untuk verifikasi keamanan oleh Administrator sebelum dapat digunakan untuk login.
                       </p>
                     </div>
 
                     <button
                       type="submit"
-                      className="w-full bg-brand-600 hover:bg-brand-700 text-white p-2.5 font-bold text-xs rounded-xl shadow-md cursor-pointer transition-all active:scale-95 mt-2 flex items-center justify-center gap-1.5"
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white p-2.5 font-bold text-xs rounded-xl shadow-md cursor-pointer transition-all active:scale-95 mt-2 flex items-center justify-center gap-1.5"
                     >
                       <UserPlus size={14} />
                       Kirim Pendaftaran
@@ -720,7 +714,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setIsRegisterOpen(false)}
-                      className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 text-xs font-bold rounded-xl cursor-pointer transition-all active:scale-95"
+                      className="w-full bg-white hover:bg-slate-100 text-blue-600 border border-slate-200 p-2 text-xs font-bold rounded-xl cursor-pointer transition-all active:scale-95"
                     >
                       Kembali ke Login
                     </button>
@@ -729,101 +723,69 @@ export default function App() {
               ) : (
                 <>
                   {/* Login Card */}
-                  <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                  <div className="bg-slate-50 p-6 ">
                     
-                    <form onSubmit={handleLoginSubmit} className="space-y-4">
-                      <div className="text-left">
-                        <label className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">ID Login / Username *</label>
-                        <input
-                          type="text"
-                          id="login-username-input"
-                          required
-                          placeholder="Masukkan ID login unik Anda / 'admin'"
-                          value={loginId}
-                          onChange={(e) => setLoginId(e.target.value)}
-                          className="w-full text-xs font-semibold p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
-                        />
-                      </div>
+                    <form onSubmit={handleLoginSubmit} className="space-y-4">
+                      <div className="text-left">
+                        <input
+                          type="text"
+                          id="login-username-input"
+                          required
+                          placeholder="Masukkan ID login anda"
+                          value={loginId}
+                          onChange={(e) => setLoginId(e.target.value)}
+                          className="w-full text-xs font-semibold p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
+                        />
+                      </div>
 
-                      <div className="text-left">
-                        <label className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Password Keamanan *</label>
-                        <div className="relative">
-                          <input
-                            type={showLoginPassword ? "text" : "password"}
-                            id="login-password-input"
-                            required
-                            placeholder="Masukkan password keamanan Anda"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="w-full text-xs font-semibold p-3 pr-10 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowLoginPassword(!showLoginPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer transition-all"
-                            title={showLoginPassword ? "Sembunyikan password" : "Tampilkan password"}
-                          >
-                            {showLoginPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                          </button>
-                        </div>
-                      </div>
+                      <div className="text-left">
+                        <div className="relative">
+                          <input
+                            type={showLoginPassword ? "text" : "password"}
+                            id="login-password-input"
+                            required
+                            placeholder="Masukkan password Anda"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="w-full text-xs font-semibold p-3 pr-10 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowLoginPassword(!showLoginPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer transition-all"
+                            title={showLoginPassword ? "Sembunyikan password" : "Tampilkan password"}
+                          >
+                            {showLoginPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
+                      </div>
 
-                      <button
-                        type="submit"
-                        id="login-submit-btn"
-                        className="w-full bg-brand-600 hover:bg-brand-700 text-white p-3 font-bold text-xs rounded-xl shadow-md cursor-pointer transition-all active:scale-95 mt-2"
-                      >
-                        Masuk Sistem
-                      </button>
-                    </form>
+                      <button
+                        type="submit"
+                        id="login-submit-btn"
+                        className="w-full bg-brand-600 hover:bg-brand-700 text-white p-3 font-bold text-xs rounded-xl shadow-md cursor-pointer transition-all active:scale-95 mt-2"
+                      >
+                        Masuk Sistem
+                      </button>
+                    </form>
 
                     {/* CTA Register / Sign Up Section */}
                     <div className="mt-4 pt-4 border-t border-slate-100 text-center">
-                      <p className="text-[10.5px] text-slate-400 font-medium">Belum punya akun Tutor?</p>
+                      <p className="text-[10.5px] text-slate-400 font-medium">Belum punya akun</p>
                       <button
                         type="button"
                         onClick={() => setIsRegisterOpen(true)}
                         className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-extrabold text-brand-600 hover:text-brand-700 transition-all cursor-pointer active:scale-95"
                       >
                         <UserPlus size={13} />
-                        Daftar Tutor Baru di Sini
+                        Registrasi Sekarang
                       </button>
                     </div>
                   </div>
 
-                  {/* QUICK LOGIN ASSIST FOR SYSTEM REVIEWER (SUPER ACCESSIBILITY) */}
-                  <div className="mt-6 bg-blue-50/70 p-4 rounded-2xl border border-brand-100 text-left">
-                    <p className="text-[10px] font-bold text-brand-700 uppercase tracking-wider flex items-center gap-1.5 mb-2.5">
-                      <Info size={13} />
-                      Bantuan Pengujian Cepat
-                    </p>
-                    <div className="space-y-2 text-[11px] text-slate-600">
-                      <div className="flex items-center justify-between">
-                        <span>Admin (`admin` / `admin123`)</span>
-                        <button
-                          id="quick-fill-admin"
-                          onClick={() => handleQuickLogin("admin")}
-                          className="text-[10px] font-bold text-brand-600 bg-white border border-brand-200 px-2.5 py-1 rounded-lg hover:bg-brand-50 cursor-pointer active:scale-95"
-                        >
-                          Isi Otomatis
-                        </button>
-                      </div>
-                      <div className="flex items-center justify-between border-t border-brand-100/35 pt-2">
-                        <span>Tutor Budi (`budi` / `123`)</span>
-                        <button
-                          id="quick-fill-tutor"
-                          onClick={() => handleQuickLogin("tutor", "budi")}
-                          className="text-[10px] font-bold text-brand-600 bg-white border border-brand-200 px-2.5 py-1 rounded-lg hover:bg-brand-50 cursor-pointer active:scale-95"
-                        >
-                          Isi Otomatis
-                        </button>
-                      </div>
-                    </div>
-                  </div>
                 </>
               )}
 
-              </div> {/* Close max-w-sm wrapper */}
             </div>
           ) : (
             
@@ -831,29 +793,20 @@ export default function App() {
             <div className="flex-grow shrink-0 animate-fade-in flex flex-col relative z-10 w-full min-h-full bg-white/40 md:bg-white/60 md:backdrop-blur-xl md:rounded-2xl md:shadow-[0_8px_32px_rgba(0,0,0,0.02)] md:border md:border-white/80 overflow-hidden">
               
               {/* Core Header (Sticky header containing sign-out & current user role) */}
-              <div className="bg-white/80 backdrop-blur-md border-b border-slate-100/50 px-4 py-3 flex items-center justify-between sticky top-0 z-40 shrink-0">
+              <div className="bg-brand-500 backdrop-blur-md border-b border-brand-500 px-4 py-3 flex items-center justify-between sticky top-0 z-40 shrink-0">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full shrink-0" />
-                  <span className="text-[10.5px] font-bold text-slate-500 tracking-tight uppercase truncate">
-                    {userSession.role === "admin" ? "Sistem Admin" : "Sesi Tutor: " + userSession.nama.split(",")[0]}
+                  <span className="text-[10.5px] font-bold text-slate-100 tracking-tight uppercase truncate">
+                    {userSession.role === "admin" ? "Sistem Admin" : "Sesi Tutor:"}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={handleInstallApp}
-                    title="Pasang Aplikasi Standalone (Full Screen)"
-                    className="flex items-center gap-1 text-[10px] font-black text-brand-600 bg-brand-50 hover:bg-brand-100 px-2 py-1.5 rounded-lg border border-brand-100 transition-colors cursor-pointer"
-                  >
-                    <Download size={11} />
-                    Instal
-                  </button>
 
                   <button
                     id="auth-logout-btn"
                     onClick={handleLogout}
-                    className="flex items-center gap-1 text-[10.5px] font-black text-rose-500 bg-rose-50 px-2.5 py-1.5 rounded-lg border border-rose-100 hover:bg-rose-100 transition-colors cursor-pointer"
+                    className="flex items-center gap-1 text-[10.5px] font-black text-blue-500 bg-blue-50 px-2.5 py-1.5 rounded-lg border border-blue-100 hover:bg-bluee-100 transition-colors cursor-pointer"
                   >
                     <LogOut size={11} />
                     Keluar
