@@ -15,6 +15,7 @@ import {
   Download,
   Info,
   DollarSign,
+  RotateCcw,
   Minus
 } from "lucide-react";
 import { 
@@ -28,6 +29,7 @@ import {
   getKasLembagaBalance,
   addPaymentTransaction,
   confirmTutorDepositHandover,
+  undoTutorDepositHandover,
   payTutorHonorTransaction,
   addGeneralExpenseTransaction,
   addOtherIncomeTransaction,
@@ -309,6 +311,16 @@ export default function AdminKeuangan({
     setConfirmingHandoverId(null);
   };
 
+  // Undo / Cancel Handover Verification
+  const handleHandoverUndo = (paymentId: string) => {
+    const payItem = db.payments.find(p => p.id === paymentId);
+    if (!payItem) return;
+
+    if (window.confirm(`Apakah Anda yakin ingin membatalkan verifikasi setoran ${payItem.id} (${formatRupiah(payItem.jumlah)})? Status titipan akan dikembalikan menjadi 'Di Tangan Tutor' dan transaksi pembukuan kas/piutang siswa terkait akan dibatalkan.`)) {
+      const nextDb = undoTutorDepositHandover(db, paymentId);
+      onUpdateDb(nextDb);
+    }
+  };
   return (
     <div id="admin-keuangan-container" className="px-2 py-4 pb-20">
       
@@ -492,7 +504,7 @@ export default function AdminKeuangan({
                       {/* Chronological Table ledger */}
                       <div className="mt-4">
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Riwayat Mutasi Tagihan</p>
-                        <div className="border border-slate-100 rounded-lg overflow-x-auto text-xs">
+                        <div className="border border-slate-100 rounded-lg overflow-x-auto scrollbar-none text-xs">
                           <table className="w-full text-left border-collapse">
                             <thead>
                               <tr className="bg-slate-50 text-slate-400 font-bold uppercase text-[9px] border-b border-slate-100">
@@ -536,9 +548,9 @@ export default function AdminKeuangan({
           2. TITIPAN TUTOR SUB-TAB
           ============================================== */}
       {activeSubTab === "titipan" && (
-        <div className="space-y-8">
+        <div className="space-y-4">
           <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-5 px-2">Status Saldo Titipan Tutor</h3>
-          <div className="bg-white p-5 rounded-lg border border-slate-100 shadow-xs">
+          <div className="bg-white p-4 rounded-lg border border-slate-100 shadow-xs">
             
             <div className="space-y-3">
               {db.tutors.map((tutor) => {
@@ -565,7 +577,7 @@ export default function AdminKeuangan({
 
           {/* Pending payments to be confirmed / handed over to Admin */}
           <div>
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 px-2">Verifikasi Setoran Pembayaran</h3>
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-5 px-2">Verifikasi Setoran Pembayaran</h3>
             <div className="space-y-3">
               {/* Filter payments with method 'tutor' */}
               {(() => {
@@ -578,7 +590,7 @@ export default function AdminKeuangan({
                       <div 
                         key={p.id} 
                         id={`pending-payment-card-${p.id}`}
-                        className="bg-white p-5 rounded-lg border border-slate-100 shadow-3xs flex flex-col gap-2 relative"
+                        className="bg-white p-4 rounded-lg border border-slate-100 shadow-3xs flex flex-col gap-2 relative"
                       >
                         <div className="flex justify-between items-center">
                           <span className="text-[9.5px] font-bold font-mono bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full">
@@ -635,6 +647,18 @@ export default function AdminKeuangan({
                                 Konfirmasi Terima
                               </button>
                             )
+                          )}
+
+                          {p.statusTitipan === "diserahkan" && (
+                            <button
+                              id={`undo-handover-btn-${p.id}`}
+                              onClick={() => handleHandoverUndo(p.id)}
+                              className="flex items-center gap-1 text-[10px] font-extrabold text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2.5 py-1.5 rounded-xl cursor-pointer transition-all active:scale-95"
+                              title="Batalkan / Urungkan Verifikasi Setoran"
+                            >
+                              <RotateCcw size={12} />
+                              Batalkan
+                            </button>
                           )}
                         </div>
                       </div>
@@ -776,7 +800,7 @@ export default function AdminKeuangan({
                       {/* Chronological Table ledger */}
                       <div className="mt-4">
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Riwayat Mutasi Honor</p>
-                        <div className="border border-slate-100 rounded-xl overflow-x-auto text-xs">
+                        <div className="border border-slate-100 rounded-xl overflow-x-auto scrollbar-none text-xs">
                           <table className="w-full text-left border-collapse">
                             <thead>
                               <tr className="bg-slate-50 text-slate-400 font-bold uppercase text-[9px] border-b border-slate-100">
@@ -821,38 +845,47 @@ export default function AdminKeuangan({
           ============================================== */}
       {activeSubTab === "kas" && (
         <div className="space-y-4">
-<div className="bg-gradient-to-br from-emerald-600 to-emerald-800 text-white p-5 rounded-lg shadow-sm flex flex-col gap-1.5 relative overflow-hidden">
-  <p className="text-[10px] text-emerald-100 uppercase tracking-widest font-bold">Total Kas Lembaga Saat Ini</p>
-  <h2 className="text-2xl font-black font-mono tracking-tight">{formatRupiah(getKasLembagaBalance(db))}</h2>
-  
-  {/* Kontainer untuk membungkus kedua tombol agar berjejer ke samping secara rapi */}
-  <div className="flex flex-wrap items-center gap-2 mt-3.5">
+        <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-emerald-600 to-emerald-800 p-2 text-white shadow-sm flex flex-col gap-1">
+          {/* Header */}
+          <p className="text-[12px] font-bold uppercase tracking-widest text-emerald-100 px-2 py-2">
+            Total Kas Lembaga Saat Ini
+          </p>
 
-    {/* 2. Tombol Catat Pemasukan Lain */}
-    <button
-      onClick={() => setIsOtherIncomeModalOpen(true)}
-      className="flex items-center justify-center gap-1 text-[10.5px] font-black bg-white text-emerald-800 hover:bg-emerald-50 px-3.5 py-2 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 flex-1 sm:flex-initial"
-    >
-      <Plus size={14} className="stroke-[3]" />
-      <span>Pemasukan Lain</span>
-    </button>
-    
-    {/* 1. Tombol Catat Pengeluaran Operasional */}
-    <button
-      id="record-misc-expense-btn"
-      onClick={() => setIsExpenseModalOpen(true)}
-      className="flex items-center justify-center gap-1 text-[10.5px] font-black bg-white text-emerald-800 hover:bg-emerald-50 px-3.5 py-2 rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 flex-1 sm:flex-initial"
-    >
-      <Minus size={14} className="stroke-[3]" />
-      <span>Pengeluaran Lain</span>
-    </button>
-  </div>
-</div>
+          {/* Container Utama: Nominal (Kiri) & Tombol Bersub (Kanan) */}
+          <div className="flex items-center justify-between gap-4">
+            {/* Nominal */}
+            <h2 className="font-mono text-3xl font-black tracking-tight whitespace-nowrap">
+              {formatRupiah(getKasLembagaBalance(db))}
+            </h2>
+
+            {/* Action Buttons (Bersub / Ditumpuk Vertikal & Rata Kanan) */}
+            <div className="flex flex-col items-end gap-2">
+              <button
+                onClick={() => setIsOtherIncomeModalOpen(true)}
+                className="flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-2 text-xs font-bold text-emerald-800 shadow-sm transition-all hover:bg-emerald-50 active:scale-95 cursor-pointer whitespace-nowrap"
+              >
+                <Plus size={14} />
+                Pemasukan Lain
+              </button>
+
+              <button
+                id="record-misc-expense-btn"
+                onClick={() => setIsExpenseModalOpen(true)}
+                className="flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-2 text-xs font-bold text-emerald-800 shadow-sm transition-all hover:bg-emerald-50 active:scale-95 cursor-pointer whitespace-nowrap"
+              >
+                <Minus size={14} />
+                Pengeluaran Lain
+              </button>
+            </div>
+          </div>
+        </div>
+
+
 
           <div>
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 px-2">Arus Buku Kas Lembaga</h3>
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-5 px-2">Arus Buku Kas Lembaga</h3>
             
-            <div className="border border-slate-100 rounded-lg bg-white overflow-x-auto text-xs shadow-3xs">
+            <div className="border border-slate-100 rounded-lg bg-white overflow-x-auto scrollbar-none text-xs shadow-3xs">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 text-slate-400 font-bold uppercase text-[9px] border-b border-slate-100">

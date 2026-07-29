@@ -680,7 +680,6 @@ export default function AdminDashboard({
             </div>
 
         {/* 4. FINANCIAL WRAPPER (ESTIMATION & OUTSTANDINGS) */}
-        {/* 4. FINANCIAL WRAPPER (ESTIMATION & OUTSTANDINGS) */}
         <div id="financial-card" className="bg-white p-4 rounded-lg shadow-xs border border-slate-100 mb-6">
           <div className="flex items-center justify-between mb-3 pb-3 border-b border-slate-50">
             <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Buku Operasional {formatBulanTahun(getTodayDateString())}</h3>
@@ -848,7 +847,7 @@ export default function AdminDashboard({
             </div>
           </div>
 
-          <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1 scrollbar-thin">
+          <div className="space-y-2 max-h-[340px] overflow-y-auto scrollbar-none pr-1 scrollbar-thin">
             {sortedSchedules.map((schedule) => (
               <div 
                 key={schedule.id}

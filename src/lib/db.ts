@@ -397,6 +397,70 @@ export function confirmTutorDepositHandover(
   return nextDb;
 }
 
+// 3b. Undo / Cancel Tutor Deposit Handover Verification
+export function undoTutorDepositHandover(
+  db: Database,
+  paymentId: string
+): Database {
+  const paymentIdx = db.payments.findIndex(p => p.id === paymentId);
+  if (paymentIdx === -1) return db;
+
+  const payment = db.payments[paymentIdx];
+  if (payment.metode !== "tutor" || payment.statusTitipan !== "diserahkan") return db;
+
+  const nextDb = {
+    ...db,
+    payments: [...db.payments],
+    studentLedger: [...db.studentLedger],
+    kas: [...db.kas]
+  };
+
+  // Revert payment status back to pending
+  nextDb.payments[paymentIdx] = {
+    ...payment,
+    statusTitipan: "pending" as const,
+    tanggalSerah: undefined
+  };
+
+  // Remove corresponding student ledger entry created during handover
+  nextDb.studentLedger = nextDb.studentLedger.filter(
+    tx => tx.referensiId !== paymentId
+  );
+
+  // Recalculate Student Ledger running balance for affected student
+  let studentRunning = 0;
+  nextDb.studentLedger = nextDb.studentLedger.map(tx => {
+    if (tx.siswaId === payment.siswaId) {
+      if (tx.tipe === "debit") {
+        studentRunning += tx.jumlah;
+      } else {
+        studentRunning -= tx.jumlah;
+      }
+      return { ...tx, saldoBerjalan: studentRunning };
+    }
+    return tx;
+  });
+
+  // Remove corresponding Kas entry created during handover
+  nextDb.kas = nextDb.kas.filter(
+    k => k.referensiId !== paymentId
+  );
+
+  // Recalculate Kas running balance
+  let kasRunning = 0;
+  nextDb.kas = nextDb.kas.map(k => {
+    if (k.tipe === "masuk") {
+      kasRunning += k.jumlah;
+    } else {
+      kasRunning -= k.jumlah;
+    }
+    return { ...k, saldoBerjalan: kasRunning };
+  });
+
+  saveDatabase(nextDb);
+  return nextDb;
+}
+
 // 4. Pay Tutor Honor & Generate Slip Gaji
 export function payTutorHonorTransaction(
   db: Database,
@@ -467,7 +531,7 @@ export function payTutorHonorTransaction(
   return nextDb;
 }
 
-// 5. Add Custom General Outflow Expense (Pengeluaran Operasional)
+// 5. Add Custom General Outflow Expense (Pengeluaran Operasional / Pengeluaran Lain)
 export function addGeneralExpenseTransaction(
   db: Database,
   data: {
@@ -477,16 +541,18 @@ export function addGeneralExpenseTransaction(
   }
 ): Database {
   const nextDb = { ...db };
+  const expCount = nextDb.kas.filter(k => k.tipe === "keluar" && k.referensiId?.startsWith("EXP-")).length + 1;
+  const expId = `EXP-${String(expCount).padStart(4, "0")}`;
   
   const prevKasSaldo = nextDb.kas.length > 0 ? nextDb.kas[nextDb.kas.length - 1].saldoBerjalan : 0;
   const newKasTx: KasLembaga = {
     id: `KAS-${String(nextDb.kas.length + 1).padStart(4, "0")}`,
     tanggal: data.tanggal,
     tipe: "keluar",
-    keterangan: data.keterangan,
+    keterangan: `Pengeluaran Operasional [${expId}] - ${data.keterangan}`,
     jumlah: data.jumlah,
     saldoBerjalan: prevKasSaldo - data.jumlah,
-    referensiId: undefined
+    referensiId: expId
   };
   nextDb.kas = [...nextDb.kas, newKasTx];
 
@@ -593,7 +659,7 @@ export function addOtherIncomeTransaction(
     id: `KAS-${String(nextDb.kas.length + 1).padStart(4, "0")}`,
     tanggal: data.tanggal,
     tipe: "masuk",
-    keterangan: `Pemasukan Lain [${newId}] (${data.jenis})${data.keterangan ? ' - ' + data.keterangan : ''}`,
+    keterangan: `Pemasukan Lain [${newId}] - ${data.jenis}${data.keterangan ? ' - ' + data.keterangan : ''}`,
     jumlah: data.nominal,
     saldoBerjalan: prevKasSaldo + data.nominal,
     referensiId: newId

@@ -52,7 +52,26 @@ import CustomDatePicker from "./components/CustomDatePicker";
 
 export default function App() {
   const [db, setDb] = useState<Database | null>(null);
-  const [userSession, setUserSession] = useState<UserSession | null>(null);
+  const [userSession, setUserSession] = useState<UserSession | null>(() => {
+    const saved = localStorage.getItem('rumah_belajar_session');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
+
+  // Persist userSession whenever it changes
+  useEffect(() => {
+    if (userSession) {
+      localStorage.setItem('rumah_belajar_session', JSON.stringify(userSession));
+    } else {
+      localStorage.removeItem('rumah_belajar_session');
+    }
+  }, [userSession]);
 
   // Toast notification state
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
@@ -85,7 +104,28 @@ export default function App() {
   }, []);
   
   // Navigation State
-  const [activeTab, setActiveTab] = useState<string>("home");
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    return localStorage.getItem('rumah_belajar_active_tab') || "home";
+  });
+
+  useEffect(() => {
+    localStorage.setItem('rumah_belajar_active_tab', activeTab);
+    
+    // Update history state to allow mobile back button to work
+    if (window.history.state?.tab !== activeTab) {
+      window.history.pushState({ tab: activeTab }, '');
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      if (e.state && e.state.tab) {
+        setActiveTab(e.state.tab);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
   const [adminSubTab, setAdminSubTab] = useState<string>("");
   const [laporanSubTab, setLaporanSubTab] = useState<"pdf" | "absensi" | "verifikasi">("pdf");
   const [selectedEntityId, setSelectedEntityId] = useState<string>("");
@@ -364,6 +404,7 @@ export default function App() {
   const handleLogout = () => {
     if (window.confirm("Apakah Anda yakin ingin keluar dari aplikasi?")) {
       setUserSession(null);
+      setActiveTab("home");
       setLoginId("");
       setPassword("");
     }
@@ -587,9 +628,8 @@ export default function App() {
         </aside>
       )}
 
-      {/* ==================== MAIN SCREEN CONTENT ==================== */}
-      <div className="flex-1 flex flex-col relative h-full overflow-hidden w-full max-w-full z-20">
-        <main className="flex-1 overflow-y-auto w-full max-w-full md:max-w-[98%] xl:max-w-[96%] mx-auto flex flex-col pb-24 md:pb-8 md:p-8 p-0 md:pt-8">
+  <div className="flex-1 flex flex-col relative h-full overflow-hidden w-full max-w-full z-20">
+        <main className="flex-1 overflow-y-auto scrollbar-none w-full max-w-full md:max-w-[98%] xl:max-w-[96%] mx-auto flex flex-col pb-24 md:pb-8 md:p-8 p-0 md:pt-8">
           
           {/* A. NOT LOGGED IN - SHOW LOGIN PAGE */}
           {!userSession ? (
@@ -796,8 +836,8 @@ export default function App() {
               <div className="bg-brand-500 backdrop-blur-md border-b border-brand-500 px-4 py-3 flex items-center justify-between sticky top-0 z-40 shrink-0">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full shrink-0" />
-                  <span className="text-[10.5px] font-bold text-slate-100 tracking-tight uppercase truncate">
-                    {userSession.role === "admin" ? "Sistem Admin" : "Sesi Tutor:"}
+                  <span className="text-[10.5px] font-bold text-slate-50 tracking-tight uppercase truncate">
+                    {userSession.role === "admin" ? "Sistem Admin" : "Sesi Tutor"}
                   </span>
                 </div>
 
@@ -806,7 +846,7 @@ export default function App() {
                   <button
                     id="auth-logout-btn"
                     onClick={handleLogout}
-                    className="flex items-center gap-1 text-[10.5px] font-black text-blue-500 bg-blue-50 px-2.5 py-1.5 rounded-lg border border-blue-100 hover:bg-bluee-100 transition-colors cursor-pointer"
+                    className="flex items-center gap-1 text-[10.5px] font-black text-blue-500 bg-blue-50 px-2.5 py-1.5 rounded-lg border border-blue-100 hover:bg-blue-100 transition-colors cursor-pointer"
                   >
                     <LogOut size={11} />
                     Keluar
@@ -825,20 +865,20 @@ export default function App() {
                       db={db}
                       onNavigateToTab={handleNavigateToTab}
                       onOpenQuickAction={handleOpenQuickAction}
-                      onUpdateDb={handleUpdateDb}
+                      onUpdateDb={(newDb) => setDb(newDb)}
                     />
                   )}
                   {activeTab === "operasional" && (
                     <AdminOperasional
                       db={db}
-                      onUpdateDb={handleUpdateDb}
+                      onUpdateDb={(newDb) => setDb(newDb)}
                       onNavigateToTab={handleNavigateToTab}
                     />
                   )}
                   {activeTab === "keuangan" && (
                     <AdminKeuangan
                       db={db}
-                      onUpdateDb={handleUpdateDb}
+                      onUpdateDb={(newDb) => setDb(newDb)}
                       selectedEntityId={selectedEntityId}
                       onClearSelectedId={() => setSelectedEntityId("")}
                       quickActionOpen={quickActionOpen}
@@ -849,7 +889,7 @@ export default function App() {
                   {activeTab === "laporan" && (
                     <AdminLaporan
                       db={db}
-                      onUpdateDb={handleUpdateDb}
+                      onUpdateDb={(newDb) => setDb(newDb)}
                       defaultMainTab={laporanSubTab}
                     />
                   )}
@@ -864,21 +904,21 @@ export default function App() {
                       db={db}
                       tutorId={userSession.userId}
                       onNavigateToTab={handleNavigateToTab}
-                      onUpdateDb={handleUpdateDb}
+                      onUpdateDb={(newDb) => setDb(newDb)}
                     />
                   )}
                   {activeTab === "laporan_tutor" && (
                     <TutorLaporan
                       db={db}
                       tutorId={userSession.userId}
-                      onUpdateDb={handleUpdateDb}
+                      onUpdateDb={(newDb) => setDb(newDb)}
                     />
                   )}
                   {activeTab === "riwayat" && (
                     <TutorRiwayat
                       db={db}
                       tutorId={userSession.userId}
-                      onUpdateDb={handleUpdateDb}
+                      onUpdateDb={(newDb) => setDb(newDb)}
                     />
                   )}
                   {activeTab === "rekening" && (
@@ -902,7 +942,7 @@ export default function App() {
         )}
 
       </div>
-
+      
       {/* ========================================================
           ADMIN MODAL: RECORD NEW SESSION DIRECT FROM HOME
           ======================================================== */}

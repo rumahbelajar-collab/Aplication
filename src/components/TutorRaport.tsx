@@ -318,7 +318,7 @@ export default function TutorRaport({
         </div>
 
         {/* Modal Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-5 md:p-6 bg-slate-50/50">
+        <div className="flex-1 overflow-y-auto scrollbar-none p-5 md:p-6 bg-slate-50/50">
           
           {/* TAB A: INPUT FORM */}
           {activeTab === "input" && (

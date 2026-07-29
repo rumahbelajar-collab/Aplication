@@ -38,7 +38,9 @@ import {
   downloadRekapTitipanTutorPDF,
   downloadRekapAbsensiPDF,
   downloadDaftarJadwalPDF,
-  downloadRekapBukuKasPDF
+  downloadRekapBukuKasPDF,
+  downloadDaftarSiswaPDF,
+  downloadDaftarTutorPDF
 } from "../lib/pdfGenerator";
 import DateRangeFilter, { DateRangePreset } from "./DateRangeFilter";
 
@@ -246,7 +248,7 @@ export default function AdminLaporan({ db, onUpdateDb, defaultMainTab = "pdf" }:
   };
 
   return (
-    <div id="admin-laporan-container" className="px-4 py-4 pb-24 space-y-4">
+    <div id="admin-laporan-container" className="px-2 py-4 pb-24 space-y-4">
       
       {/* THREE PRIMARY TABS (DANA STYLE RAIL) */}
       <div className="grid grid-cols-3 bg-white p-1 rounded-lg border border-slate-100 shadow-3xs shrink-0">
@@ -465,6 +467,28 @@ export default function AdminLaporan({ db, onUpdateDb, defaultMainTab = "pdf" }:
               </div>
               <button
                 onClick={() => downloadDaftarJadwalPDF(db.schedules || [], db.tutors || [])}
+                className="p-3 bg-brand-50 hover:bg-brand-100 text-brand-600 rounded-xl transition-all cursor-pointer border border-brand-100 active:scale-95"
+              >
+                <Download size={16} />
+              </button>
+            </div>
+
+                        {/* Daftar Siswa Terdaftar */}
+            <div className="bg-white p-4 rounded-lg border border-slate-100 shadow-xs hover:border-brand-300 transition-all flex items-center justify-between">
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-11 h-11 bg-sky-50 text-sky-600 rounded-2xl flex items-center justify-center shrink-0 border border-sky-100/50">
+                  <Users size={20} />
+                </div>
+                <div className="min-w-0">
+                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide">Daftar Siswa Terdaftar</h4>
+                  <p className="text-[10.5px] text-slate-400 mt-0.5 truncate font-medium">Laporan rekapitulasi data seluruh murid aktif & nonaktif</p>
+                  <span className="inline-block mt-1 text-[9px] font-bold bg-slate-50 text-slate-500 px-2 py-0.5 rounded-full font-mono">
+                    {db.students?.length || 0} Siswa
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => downloadDaftarSiswaPDF(db.students || [], db)}
                 className="p-3 bg-brand-50 hover:bg-brand-100 text-brand-600 rounded-xl transition-all cursor-pointer border border-brand-100 active:scale-95"
               >
                 <Download size={16} />

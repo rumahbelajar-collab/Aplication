@@ -1424,3 +1424,122 @@ periodKas.forEach((k, idx) => {
   drawFooter(doc, 1);
   doc.save(`REKAP_BUKU_KAS_${periodStr.replace(/\s+/g, "_")}.pdf`);
 }
+
+// 12. INSTITUTIONAL: DAFTAR SISWA TERDAFTAR
+export function downloadDaftarSiswaPDF(students: Siswa[], db: Database) {
+  const doc = new jsPDF();
+  drawHeader(doc, "DAFTAR SISWA TERDAFTAR", "Laporan Data Siswa / Murid Bimbingan Belajar", "Semua Periode");
+
+  const headers = ["No", "ID Siswa", "Nama Siswa", "Program Belajar", "Telepon Ortu", "Status", "Tgl Daftar"];
+  const widths = [10, 20, 45, 35, 28, 17, 25];
+  const alignments: ("left" | "right" | "center")[] = ["center", "center", "left", "left", "center", "center", "center"];
+
+  const programs = db.programs || [];
+  const getProgramName = (progId: string) => {
+    const p = programs.find(pr => pr.id === progId);
+    return p ? p.nama : (progId || "-");
+  };
+
+  const sortedStudents = [...(students || [])].sort((a, b) => a.nama.localeCompare(b.nama));
+
+  const rows: string[][] = sortedStudents.map((s, idx) => [
+    String(idx + 1),
+    s.id,
+    s.nama,
+    getProgramName(s.programId),
+    s.teleponOrangTua || "-",
+    s.status === "aktif" ? "Aktif" : "Nonaktif",
+    s.tanggalDaftar ? formatTanggalIndo(s.tanggalDaftar) : "-"
+  ]);
+
+  if (rows.length === 0) {
+    rows.push(["-", "-", "Belum ada data siswa terdaftar", "-", "-", "-", "-"]);
+  }
+
+  const endY = drawTableGrid(doc, 42, headers, widths, rows, alignments);
+
+  let nextY = endY + 8;
+  if (nextY > 230) {
+    drawFooter(doc, 1);
+    doc.addPage();
+    nextY = 45;
+  }
+
+  const totalAktif = sortedStudents.filter(s => s.status === "aktif").length;
+  const totalNonaktif = sortedStudents.filter(s => s.status === "nonaktif").length;
+
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.5);
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(15, nextY, 180, 18, 1.5, 1.5, "FD");
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8.5);
+  doc.setTextColor(30, 41, 59);
+  doc.text(`TOTAL SISWA TERDAFTAR: ${sortedStudents.length} MURID`, 20, nextY + 7);
+
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Aktif: ${totalAktif} | Nonaktif: ${totalNonaktif}`, 20, nextY + 13);
+
+  drawSignature(doc, nextY + 30, "Kepala Operasional");
+  drawFooter(doc, 1);
+  doc.save(`DAFTAR_SISWA_RUMAH_BELAJAR.pdf`);
+}
+
+// 13. INSTITUTIONAL: DAFTAR TUTOR TERDAFTAR
+export function downloadDaftarTutorPDF(tutors: Tutor[]) {
+  const doc = new jsPDF();
+  drawHeader(doc, "DAFTAR TUTOR & PENGAJAR", "Laporan Data Pengajar & Staff Bimbingan Belajar", "Semua Periode");
+
+  const headers = ["No", "ID Tutor", "ID Login", "Nama Tutor", "Telepon", "Status", "Tgl Bergabung"];
+  const widths = [10, 20, 25, 45, 30, 20, 30];
+  const alignments: ("left" | "right" | "center")[] = ["center", "center", "center", "left", "center", "center", "center"];
+
+  const sortedTutors = [...(tutors || [])].sort((a, b) => a.nama.localeCompare(b.nama));
+
+  const rows: string[][] = sortedTutors.map((t, idx) => [
+    String(idx + 1),
+    t.id,
+    t.idLogin,
+    t.nama,
+    t.telepon || "-",
+    t.status === "aktif" ? "Aktif" : "Nonaktif",
+    t.tanggalBergabung ? formatTanggalIndo(t.tanggalBergabung) : "-"
+  ]);
+
+  if (rows.length === 0) {
+    rows.push(["-", "-", "-", "Belum ada data tutor terdaftar", "-", "-", "-"]);
+  }
+
+  const endY = drawTableGrid(doc, 42, headers, widths, rows, alignments);
+
+  let nextY = endY + 8;
+  if (nextY > 230) {
+    drawFooter(doc, 1);
+    doc.addPage();
+    nextY = 45;
+  }
+
+  const totalAktif = sortedTutors.filter(t => t.status === "aktif").length;
+  const totalNonaktif = sortedTutors.filter(t => t.status === "nonaktif").length;
+
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.5);
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(15, nextY, 180, 18, 1.5, 1.5, "FD");
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8.5);
+  doc.setTextColor(30, 41, 59);
+  doc.text(`TOTAL TUTOR TERDAFTAR: ${sortedTutors.length} PENGAJAR`, 20, nextY + 7);
+
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Aktif: ${totalAktif} | Nonaktif: ${totalNonaktif}`, 20, nextY + 13);
+
+  drawSignature(doc, nextY + 30, "Kepala Operasional");
+  drawFooter(doc, 1);
+  doc.save(`DAFTAR_TUTOR_RUMAH_BELAJAR.pdf`);
+}
+

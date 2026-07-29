@@ -621,7 +621,7 @@ export default function TutorDashboard({
               </button>
             </div>
 
-            <div className="p-5 overflow-y-auto space-y-4 text-xs leading-relaxed text-slate-600">
+            <div className="p-5 overflow-y-auto scrollbar-none space-y-4 text-xs leading-relaxed text-slate-600">
               <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-2xl flex gap-2 text-indigo-900">
                 <Info size={16} className="shrink-0 mt-0.5 text-indigo-600" />
                 <span className="font-bold">Patuhi Panduan Demi Kelancaran Administrasi & Pencairan Honor</span>
