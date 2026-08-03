@@ -239,15 +239,16 @@ export async function pullFromSupabase(): Promise<Database | null> {
           const tid = r.id || r.id_login;
           if (!tid) return;
           const idx = existingTutors.findIndex(t => t.id === tid || t.idLogin.toLowerCase() === (r.id_login || "").toLowerCase());
+          const existingTutor = idx >= 0 ? existingTutors[idx] : null;
           const mappedTutor: Tutor = {
             id: tid,
-            nama: r.nama || "Tutor",
-            idLogin: r.id_login || tid,
-            password: r.password || "123",
-            status: r.status === "nonaktif" ? "nonaktif" : "aktif",
-            telepon: r.telepon || "",
-            alamat: r.alamat || "",
-            tanggalBergabung: r.tanggal_bergabung || (r.created_at ? r.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10))
+            nama: r.nama || existingTutor?.nama || "Tutor",
+            idLogin: r.id_login || existingTutor?.idLogin || tid,
+            password: (r.password && r.password !== "123") ? r.password : (existingTutor?.password || r.password || "123"),
+            status: r.status === "nonaktif" ? "nonaktif" : (existingTutor?.status || "aktif"),
+            telepon: r.telepon || existingTutor?.telepon || "",
+            alamat: r.alamat || existingTutor?.alamat || "",
+            tanggalBergabung: r.tanggal_bergabung || existingTutor?.tanggalBergabung || new Date().toISOString().slice(0, 10)
           };
           if (idx >= 0) {
             existingTutors[idx] = { ...existingTutors[idx], ...mappedTutor };
@@ -304,26 +305,71 @@ export async function pullFromSupabase(): Promise<Database | null> {
 }
 
 // SQL Schema code to share with user
-export const SUPABASE_SQL_SCHEMA = `-- Jalankan perintah SQL ini di "SQL Editor" di Dashboard Supabase Anda:
+export const SUPABASE_SQL_SCHEMA = `-- Jalankan seluruh perintah SQL ini di "SQL Editor" di Dashboard Supabase Anda:
 
+-- 1. Tabel Utama JSON State (Rumah Belajar DB)
 CREATE TABLE IF NOT EXISTS rumah_belajar_db (
   id TEXT PRIMARY KEY,
   data JSONB NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
--- Matikan RLS (Row Level Security) agar Client-Side Anon Key bisa langsung membaca & menulis data
 ALTER TABLE rumah_belajar_db DISABLE ROW LEVEL SECURITY;
-
--- Aktifkan Fitur Sinkronisasi Real-Time untuk tabel ini di Supabase
 ALTER TABLE rumah_belajar_db REPLICA IDENTITY FULL;
 
--- Tambahkan tabel ke publikasi realtime Supabase jika belum terdaftar
+-- 2. Tabel Relasional Tutor
+CREATE TABLE IF NOT EXISTS tutor (
+  id TEXT PRIMARY KEY,
+  nama TEXT NOT NULL,
+  id_login TEXT NOT NULL,
+  password TEXT DEFAULT '123',
+  status TEXT DEFAULT 'aktif',
+  telepon TEXT DEFAULT '',
+  alamat TEXT DEFAULT '',
+  tanggal_bergabung TEXT DEFAULT '',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+ALTER TABLE tutor DISABLE ROW LEVEL SECURITY;
+ALTER TABLE tutor REPLICA IDENTITY FULL;
+
+-- 3. Tabel Relasional Siswa
+CREATE TABLE IF NOT EXISTS siswa (
+  id TEXT PRIMARY KEY,
+  nama TEXT NOT NULL,
+  program_id TEXT DEFAULT '',
+  status TEXT DEFAULT 'aktif',
+  telepon_orang_tua TEXT DEFAULT '',
+  alamat TEXT DEFAULT '',
+  tanggal_daftar TEXT DEFAULT '',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+ALTER TABLE siswa DISABLE ROW LEVEL SECURITY;
+ALTER TABLE siswa REPLICA IDENTITY FULL;
+
+-- 4. Inisialisasi Record Utama 'main_v1' jika belum ada
+INSERT INTO rumah_belajar_db (id, data, updated_at)
+VALUES (
+  'main_v1',
+  '{"programs":[],"students":[],"tutors":[],"kas":[],"studentLedger":[],"tutorLedger":[],"payments":[],"slips":[],"attendanceReports":[],"sessions":[],"schedules":[],"raports":[],"broadcastMessage":"","adminPassword":"admin123"}'::jsonb,
+  NOW()
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- 5. Aktifkan Realtime Replication untuk semua tabel di Supabase
 DO $$
 BEGIN
   ALTER PUBLICATION supabase_realtime ADD TABLE rumah_belajar_db;
-EXCEPTION
-  WHEN OTHERS THEN
-    -- Abaikan jika tabel sudah terdaftar dalam publikasi realtime
-END $$;
+EXCEPTION WHEN OTHERS THEN END $$;
+
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE tutor;
+EXCEPTION WHEN OTHERS THEN END $$;
+
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE siswa;
+EXCEPTION WHEN OTHERS THEN END $$;
 `;
