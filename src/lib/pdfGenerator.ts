@@ -139,7 +139,13 @@ function drawFooter(doc: jsPDF, pageNum: number, isLandscape: boolean = false) {
   doc.setFontSize(8);
   doc.setTextColor(148, 163, 184);
   doc.text("Aplikasi Sistemasi & Automatisasi - Rumah Belajar", 15, textY);
-  doc.text(`Halaman ${pageNum}`, rightX - doc.getTextWidth(`Halaman ${pageNum}`), textY);
+
+  // AMBIL NOMOR HALAMAN OTOMATIS DARI jsPDF
+  // Ini akan mengabaikan angka '1' yang dipassing dari luar, 
+  // dan menggantinya dengan halaman aktual (1, 2, 3, dst).
+  const currentPage = doc.internal ? doc.internal.getNumberOfPages() : pageNum;
+
+  doc.text(`Halaman ${currentPage}`, rightX - doc.getTextWidth(`Halaman ${currentPage}`), textY);
 }
 
 function drawSignature(doc: jsPDF, y: number, name: string = "Admin Operational", isLandscape: boolean = false) {
@@ -221,7 +227,7 @@ function drawTableGrid(
     if (curY > maxY) {
       drawFooter(doc, 1, isLandscape);
       doc.addPage();
-      curY = 45;
+      curY = 20;
       doc.setFillColor(241, 245, 249);
       doc.rect(15, curY, totalWidth, 8, "F");
       
@@ -1440,7 +1446,12 @@ export function downloadDaftarSiswaPDF(students: Siswa[], db: Database) {
     return p ? p.nama : (progId || "-");
   };
 
-  const sortedStudents = [...(students || [])].sort((a, b) => a.nama.localeCompare(b.nama));
+  // Sorting: Diubah menjadi berdasarkan ID Siswa (mendukung angka & string numerik)
+  const sortedStudents = [...(students || [])].sort((a, b) => {
+    const idA = a.id !== undefined && a.id !== null ? String(a.id) : "";
+    const idB = b.id !== undefined && b.id !== null ? String(b.id) : "";
+    return idA.localeCompare(idB, undefined, { numeric: true });
+  });
 
   const rows: string[][] = sortedStudents.map((s, idx) => [
     String(idx + 1),
@@ -1482,7 +1493,7 @@ export function downloadDaftarSiswaPDF(students: Siswa[], db: Database) {
   doc.setTextColor(71, 85, 105);
   doc.text(`Aktif: ${totalAktif} | Nonaktif: ${totalNonaktif}`, 20, nextY + 13);
 
-  drawSignature(doc, nextY + 30, "Kepala Operasional");
+  drawSignature(doc, nextY + 30, "Staf administrasi");
   drawFooter(doc, 1);
   doc.save(`DAFTAR_SISWA_RUMAH_BELAJAR.pdf`);
 }
@@ -1496,7 +1507,12 @@ export function downloadDaftarTutorPDF(tutors: Tutor[]) {
   const widths = [10, 20, 25, 45, 30, 20, 30];
   const alignments: ("left" | "right" | "center")[] = ["center", "center", "center", "left", "center", "center", "center"];
 
-  const sortedTutors = [...(tutors || [])].sort((a, b) => a.nama.localeCompare(b.nama));
+  // Sorting: Berdasarkan ID Tutor secara aman (mendukung angka & string angka)
+  const sortedTutors = [...(tutors || [])].sort((a, b) => {
+    const idA = a.id !== undefined && a.id !== null ? String(a.id) : "";
+    const idB = b.id !== undefined && b.id !== null ? String(b.id) : "";
+    return idA.localeCompare(idB, undefined, { numeric: true });
+  });
 
   const rows: string[][] = sortedTutors.map((t, idx) => [
     String(idx + 1),
@@ -1542,4 +1558,3 @@ export function downloadDaftarTutorPDF(tutors: Tutor[]) {
   drawFooter(doc, 1);
   doc.save(`DAFTAR_TUTOR_RUMAH_BELAJAR.pdf`);
 }
-

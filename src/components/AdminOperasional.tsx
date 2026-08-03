@@ -424,30 +424,6 @@ export default function AdminOperasional({
             className="w-full text-xs font-semibold pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500/20 transition-all shadow-2xs"
           />
         </div>
-        
-        {activeSubTab === "siswa" && (
-          <button
-            id="op-download-siswa-btn"
-            onClick={() => downloadDaftarSiswaPDF(db.students || [], db)}
-            className="flex items-center gap-1.5 px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs rounded-xl transition-all active:scale-95 cursor-pointer shrink-0 border border-slate-200"
-            title="Unduh Daftar Siswa PDF"
-          >
-            <Download size={15} />
-            <span className="hidden sm:inline">Cetak PDF</span>
-          </button>
-        )}
-
-        {activeSubTab === "tutor" && (
-          <button
-            id="op-download-tutor-btn"
-            onClick={() => downloadDaftarTutorPDF(db.tutors || [])}
-            className="flex items-center gap-1.5 px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs rounded-xl transition-all active:scale-95 cursor-pointer shrink-0 border border-slate-200"
-            title="Unduh Daftar Tutor PDF"
-          >
-            <Download size={15} />
-            <span className="hidden sm:inline">Cetak PDF</span>
-          </button>
-        )}
 
         <button
           id="op-add-btn"
