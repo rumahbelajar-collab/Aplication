@@ -845,7 +845,7 @@ export default function AdminKeuangan({
           ============================================== */}
       {activeSubTab === "kas" && (
         <div className="space-y-4">
-        <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-emerald-600 to-emerald-800 p-2 text-white shadow-sm flex flex-col gap-1">
+        <div className="relative hide-overflow-visual rounded-lg bg-gradient-to-br from-emerald-600 to-emerald-800 p-2 text-white shadow-sm flex flex-col gap-1">
           {/* Header */}
           <p className="text-[12px] font-bold uppercase tracking-widest text-emerald-100 px-2 py-2">
             Total Kas Lembaga Saat Ini
@@ -933,7 +933,7 @@ export default function AdminKeuangan({
       {/* 1. STUDENT PAYMENT MODAL */}
       {isPayModalOpen && (
         <div id="payment-form-modal" className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white w-full max-w-sm rounded-3xl shadow-xl overflow-hidden animate-slide-up">
+          <div className="bg-white w-full max-w-sm rounded-3xl shadow-xl hide-overflow-visual animate-slide-up">
             <div className="bg-emerald-600 text-white p-4 flex justify-between items-center">
               <h3 className="font-bold text-sm tracking-tight">Terima Pembayaran Siswa</h3>
               <Coins size={18} />
@@ -1034,7 +1034,7 @@ export default function AdminKeuangan({
       {/* 2. TUTOR HONOR DISBURSEMENT MODAL */}
       {isHonorModalOpen && (
         <div id="honor-form-modal" className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white w-full max-w-sm rounded-3xl shadow-xl overflow-hidden animate-slide-up">
+          <div className="bg-white w-full max-w-sm rounded-3xl shadow-xl hide-overflow-visual animate-slide-up">
             <div className="bg-indigo-600 text-white p-4 flex justify-between items-center">
               <h3 className="font-bold text-sm tracking-tight">Bayar Gaji / Honor Tutor</h3>
               <Receipt size={18} />

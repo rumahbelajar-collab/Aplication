@@ -822,7 +822,7 @@ export default function AdminOperasional({
               </span>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-5 overflow-y-auto scrollbar-none space-y-4 flex-1">
+            <form onSubmit={handleSubmit} className="p-5 overflow-y-auto scrollbar-none scrollbar-none space-y-4 flex-1">
               {/* Form Siswa */}
               {activeSubTab === "siswa" && (
                 <>

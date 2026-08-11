@@ -120,6 +120,113 @@ export function ensureDatabaseDefaults(parsed: any): Database {
   };
 }
 
+export function mergeDatabases(localDb: Database, remoteDb: Database): Database {
+  const local = ensureDatabaseDefaults(localDb);
+  const remote = ensureDatabaseDefaults(remoteDb);
+
+  const mergeArrayById = <T extends { id: string }>(
+    localArr: T[],
+    remoteArr: T[],
+    resolveConflict?: (l: T, r: T) => T
+  ): T[] => {
+    const map = new Map<string, T>();
+    (remoteArr || []).forEach(item => {
+      if (item && item.id) {
+        map.set(item.id, item);
+      }
+    });
+    (localArr || []).forEach(item => {
+      if (item && item.id) {
+        if (map.has(item.id)) {
+          const existingRemote = map.get(item.id)!;
+          if (resolveConflict) {
+            map.set(item.id, resolveConflict(item, existingRemote));
+          } else {
+            map.set(item.id, { ...existingRemote, ...item });
+          }
+        } else {
+          map.set(item.id, item);
+        }
+      }
+    });
+    return Array.from(map.values());
+  };
+
+  const attendanceReports = mergeArrayById(
+    local.attendanceReports || [],
+    remote.attendanceReports || [],
+    (loc, rem) => {
+      if (rem.status !== "pending" && loc.status === "pending") return rem;
+      if (loc.status !== "pending" && rem.status === "pending") return loc;
+      return { ...rem, ...loc };
+    }
+  );
+
+  const mergedTutorsMap = new Map<string, Tutor>();
+  (remote.tutors || []).forEach(t => {
+    if (t && t.id) mergedTutorsMap.set(t.id, t);
+  });
+  (local.tutors || []).forEach(t => {
+    if (!t || !t.id) return;
+    const existingKey = Array.from(mergedTutorsMap.keys()).find(
+      k => k === t.id || (mergedTutorsMap.get(k)?.idLogin || "").toLowerCase() === (t.idLogin || "").toLowerCase()
+    );
+    if (existingKey) {
+      const remoteTutor = mergedTutorsMap.get(existingKey)!;
+      const mergedPassword = (t.password && t.password !== "123")
+        ? t.password
+        : (remoteTutor.password || t.password || "123");
+      mergedTutorsMap.set(existingKey, {
+        ...remoteTutor,
+        ...t,
+        password: mergedPassword
+      });
+    } else {
+      mergedTutorsMap.set(t.id, t);
+    }
+  });
+
+  const resolvedAdminPassword = (remote.adminPassword && remote.adminPassword !== "admin123")
+    ? remote.adminPassword
+    : ((local.adminPassword && local.adminPassword !== "admin123") ? local.adminPassword : (remote.adminPassword || local.adminPassword || "admin123"));
+
+  const mergedDb: Database = {
+    programs: mergeArrayById(local.programs || [], remote.programs || []),
+    students: mergeArrayById(local.students || [], remote.students || []),
+    tutors: Array.from(mergedTutorsMap.values()),
+    sessions: mergeArrayById(local.sessions || [], remote.sessions || []),
+    studentLedger: mergeArrayById(local.studentLedger || [], remote.studentLedger || []),
+    payments: mergeArrayById(local.payments || [], remote.payments || []),
+    tutorLedger: mergeArrayById(local.tutorLedger || [], remote.tutorLedger || []),
+    slips: mergeArrayById(local.slips || [], remote.slips || []),
+    kas: mergeArrayById(local.kas || [], remote.kas || []),
+    otherIncomes: mergeArrayById(local.otherIncomes || [], remote.otherIncomes || []),
+    attendanceReports,
+    schedules: mergeArrayById(local.schedules || [], remote.schedules || []),
+    raports: mergeArrayById(local.raports || [], remote.raports || []),
+    broadcastMessage: remote.broadcastMessage || local.broadcastMessage,
+    adminPassword: resolvedAdminPassword
+  };
+
+  if (mergedDb.kas && mergedDb.kas.length > 0) {
+    mergedDb.kas.sort((a, b) => {
+      if (a.tanggal !== b.tanggal) return a.tanggal.localeCompare(b.tanggal);
+      return (a.id || "").localeCompare(b.id || "", undefined, { numeric: true });
+    });
+    let running = 0;
+    mergedDb.kas = mergedDb.kas.map(k => {
+      if (k.tipe === "masuk") {
+        running += k.jumlah;
+      } else {
+        running -= k.jumlah;
+      }
+      return { ...k, saldoBerjalan: running };
+    });
+  }
+
+  return mergedDb;
+}
+
 export function getDatabase(): Database {
   try {
     const raw = safeGetItem(DB_STORAGE_KEY);
@@ -131,15 +238,16 @@ export function getDatabase(): Database {
     console.error("Error loading database, resetting", e);
   }
   
-  // Create Clean Empty Database
+  // Create Clean Empty Database locally without overwriting Supabase
   const db = generateCleanDatabase();
-  saveDatabase(db);
+  safeSetItem(DB_STORAGE_KEY, JSON.stringify(db));
   return db;
 }
 
 export function saveDatabase(db: Database): void {
-  safeSetItem(DB_STORAGE_KEY, JSON.stringify(db));
-  pushToSupabase(db).catch(err => {
+  const sanitized = ensureDatabaseDefaults(db);
+  safeSetItem(DB_STORAGE_KEY, JSON.stringify(sanitized));
+  pushToSupabase(sanitized).catch(err => {
     console.error("Failed background sync to Supabase:", err);
   });
 }
@@ -585,7 +693,7 @@ export function getKasLembagaBalance(db: Database): number {
 // FILTER HELPER
 export function filterByDateRange<T extends { tanggal: string }>(
   items: T[],
-  rangeType: "hari" | "minggu" | "bulan" | "tahun" | "custom",
+  rangeType: "hari" | "minggu" | "bulan" | "tahun" | "custom" | "semua",
   customStart?: string,
   customEnd?: string,
   baseDate: string = getTodayDateString() // The context local date

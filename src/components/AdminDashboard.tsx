@@ -29,7 +29,9 @@ import {
   CalendarCheck,
   Eye,
   EyeOff,
-  Send
+  Send,
+  HardDrive,
+  BookA
 } from "lucide-react";
 import { 
   Database, 
@@ -575,7 +577,7 @@ export default function AdminDashboard({
               >
                 <div className="w-11 h-11 bg-emerald-50 group-hover:bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center border border-emerald-100/50 transition-all">
                   {/* Isikan komponen ikon Drive Anda di bawah ini */}
-                  <Coins size={20} />
+                  <HardDrive size={20} />
                 </div>
                 <span className="text-[10px] text-slate-600 font-semibold leading-tight mt-1.5 text-center">Drive</span>
               </a>
@@ -589,7 +591,7 @@ export default function AdminDashboard({
               >
                 <div className="w-11 h-11 bg-amber-50 group-hover:bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center border border-amber-100/50 transition-all">
                   {/* Isikan komponen ikon Modul Anda di bawah ini */}
-                  <Wallet size={20} />
+                  <BookOpen size={20} />
                 </div>
                 <span className="text-[10px] text-slate-600 font-semibold leading-tight mt-1.5 text-center">Modul</span>
               </a>
@@ -603,7 +605,7 @@ export default function AdminDashboard({
               >
                 <div className="w-11 h-11 bg-purple-50 group-hover:bg-purple-100 text-purple-600 rounded-2xl flex items-center justify-center border border-purple-100/50 transition-all">
                   {/* Isikan komponen ikon E-Rapor Anda di bawah ini */}
-                  <Receipt size={20} />
+                  <BookA size={20} />
                 </div>
                 <span className="text-[10px] text-slate-600 font-semibold leading-tight mt-1.5 text-center">E-Rapor</span>
               </a>

@@ -19,7 +19,9 @@ import {
   UserPlus,
   ArrowLeft,
   Eye,
-  EyeOff
+  EyeOff,
+  Cloud,
+  RefreshCw
 } from "lucide-react";
 import { 
   getDatabase, 
@@ -34,7 +36,8 @@ import {
   ensureDatabaseDefaults
 } from "./lib/db";
 import { UserSession, Tutor } from "./types";
-import { pullFromSupabase, pushToSupabase, subscribeToSyncState, SyncState, subscribeToDatabaseChanges } from "./lib/supabase";
+import { pullFromSupabase, pushToSupabase, subscribeToSyncState, SyncState, subscribeToDatabaseChanges, isEmptyDatabase } from "./lib/supabase";
+import CloudStatusBadge from "./components/CloudStatusBadge";
 
 // Admin Submodules
 import AdminDashboard from "./components/AdminDashboard";
@@ -51,7 +54,7 @@ import TutorLaporan from "./components/TutorLaporan";
 import CustomDatePicker from "./components/CustomDatePicker";
 
 export default function App() {
-  const [db, setDb] = useState<Database | null>(null);
+  const [db, setDb] = useState<Database>(() => getDatabase());
   const [userSession, setUserSession] = useState<UserSession | null>(() => {
     const saved = localStorage.getItem('rumah_belajar_session');
     if (saved) {
@@ -208,80 +211,121 @@ export default function App() {
 
   // Subscribe to real-time database changes from Supabase
   useEffect(() => {
-    const unsubscribe = subscribeToDatabaseChanges((newDb) => {
-      if (!newDb) return;
-      const sanitized = ensureDatabaseDefaults(newDb);
-      const currentLocal = safeGetItem(DB_STORAGE_KEY);
-      const incomingRemote = JSON.stringify(sanitized);
-      if (currentLocal !== incomingRemote) {
-        setDb(sanitized);
-        safeSetItem(DB_STORAGE_KEY, incomingRemote);
-      }
+    const unsubscribe = subscribeToDatabaseChanges((remoteDb) => {
+      if (!remoteDb || isEmptyDatabase(remoteDb)) return;
+      setDb(remoteDb);
+      safeSetItem(DB_STORAGE_KEY, JSON.stringify(remoteDb));
     });
     return unsubscribe;
   }, []);
 
-  // Load database on start and perform smart merge with Supabase
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+
+  // Load database on start with Supabase Cloud as primary source of truth
   useEffect(() => {
-    const loadedDb = getDatabase();
-    setDb(loadedDb);
-    
-    // Background load from Supabase with smart merge
-    const initSupabaseSync = async () => {
+    let isMounted = true;
+
+    const initCloudData = async () => {
       try {
+        // Step 1: Attempt to fetch from Supabase Cloud FIRST
         const supabaseDb = await pullFromSupabase();
-        if (supabaseDb) {
+        
+        if (!isMounted) return;
+
+        if (supabaseDb && !isEmptyDatabase(supabaseDb)) {
+          // Supabase Cloud is primary source of truth!
+          setDb(supabaseDb);
+          safeSetItem(DB_STORAGE_KEY, JSON.stringify(supabaseDb));
+        } else if (supabaseDb) {
+          // Supabase Cloud is connected but currently empty
           const localDb = getDatabase();
-          
-          // Merge Tutors: keep remote tutors and preserve any local tutors not in remote
-          const mergedTutors = [...supabaseDb.tutors];
-          const remoteTutorIds = new Set(mergedTutors.map(t => t.id));
-          const remoteTutorLogins = new Set(mergedTutors.map(t => t.idLogin.toLowerCase()));
-
-          (localDb.tutors || []).forEach(lt => {
-            if (!remoteTutorIds.has(lt.id) && !remoteTutorLogins.has(lt.idLogin.toLowerCase())) {
-              mergedTutors.push(lt);
-            }
-          });
-
-          // Merge Students: keep remote students and preserve any local students not in remote
-          const mergedStudents = [...supabaseDb.students];
-          const remoteStudentIds = new Set(mergedStudents.map(s => s.id));
-          (localDb.students || []).forEach(ls => {
-            if (!remoteStudentIds.has(ls.id)) {
-              mergedStudents.push(ls);
-            }
-          });
-
-          const mergedDb: Database = ensureDatabaseDefaults({
-            ...supabaseDb,
-            tutors: mergedTutors,
-            students: mergedStudents
-          });
-
-          setDb(mergedDb);
-          safeSetItem(DB_STORAGE_KEY, JSON.stringify(mergedDb));
-          pushToSupabase(mergedDb);
+          if (!isEmptyDatabase(localDb)) {
+            // Local cache has data, seed Supabase Cloud
+            setDb(localDb);
+            await pushToSupabase(localDb);
+          } else {
+            setDb(supabaseDb);
+            safeSetItem(DB_STORAGE_KEY, JSON.stringify(supabaseDb));
+          }
         } else {
-          // If Supabase returned null, sync local state to Supabase
-          await pushToSupabase(loadedDb);
+          // Fallback to local cache if Supabase pull returned null
+          const localDb = getDatabase();
+          setDb(localDb);
         }
       } catch (err) {
-        console.warn("Failed to fetch initial state from Supabase (using local storage instead):", err);
+        console.warn("Could not fetch from Supabase Cloud on launch, using local cache fallback:", err);
+        if (isMounted) {
+          const localDb = getDatabase();
+          setDb(localDb);
+        }
+      } finally {
+        if (isMounted) {
+          setIsInitialLoading(false);
+        }
       }
     };
-    
-    const timer = setTimeout(() => {
-      initSupabaseSync();
-    }, 400);
-    return () => clearTimeout(timer);
+
+    initCloudData();
+
+    // Auto re-sync when network connectivity is restored
+    const handleOnline = () => {
+      console.log("Koneksi internet kembali aktif, menyinkronkan data...");
+      const currentLocal = getDatabase();
+      if (currentLocal && !isEmptyDatabase(currentLocal)) {
+        pushToSupabase(currentLocal);
+      } else {
+        pullFromSupabase().then(remoteDb => {
+          if (remoteDb && !isEmptyDatabase(remoteDb)) {
+            setDb(remoteDb);
+            safeSetItem(DB_STORAGE_KEY, JSON.stringify(remoteDb));
+          }
+        });
+      }
+    };
+
+    window.addEventListener("online", handleOnline);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener("online", handleOnline);
+    };
   }, []);
 
-  if (!db) {
+  const handleRetryCloudSync = async () => {
+    if (!db) return;
+    
+    // If local cache is empty, pull from cloud to restore data
+    if (isEmptyDatabase(db)) {
+      const remoteDb = await pullFromSupabase();
+      if (remoteDb && !isEmptyDatabase(remoteDb)) {
+        setDb(remoteDb);
+        safeSetItem(DB_STORAGE_KEY, JSON.stringify(remoteDb));
+        alert("Berhasil memulihkan data dari Supabase Cloud!");
+        return;
+      }
+    }
+
+    const success = await pushToSupabase(db, true);
+    if (success) {
+      alert("Berhasil menyinkronkan data ke Cloud!");
+    } else {
+      alert("Gagal menyinkronkan ke Cloud. Mohon periksa koneksi internet Anda.");
+    }
+  };
+
+  if (isInitialLoading || !db) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-12 h-12 border-4 border-brand-600 border-t-transparent rounded-full animate-spin mb-4" />
-        <h3 className="font-bold text-slate-700">Memuat Sistem Rumah Belajar...</h3>
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-center text-white font-sans">
+                <div className="w-50 h-50 rounded-2xl flex items-center justify-center mx-auto mb-3.5">
+                  <img src="public1.png" alt="Logo Rumah Belajar" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                </div>
+        <div className="flex items-center gap-2 mb-2">
+          <RefreshCw size={16} className="text-brand-400 animate-spin" />
+          <h3 className="text-base font-extrabold tracking-wide font-display text-white">sinkronisasi cloud...</h3>
+        </div>
+        <p className="text-xs text-slate-400 font-medium max-w-xs leading-relaxed">
+          Mengambil data terbaru dari server.
+        </p>
       </div>
     );
   }
@@ -292,8 +336,11 @@ export default function App() {
       setLoginId("admin");
       setPassword(db?.adminPassword || "admin123");
     } else {
-      setLoginId(id);
-      setPassword("123");
+      const targetTutor = db?.tutors.find(
+        t => t.idLogin.toLowerCase() === id.toLowerCase() || t.id === id
+      );
+      setLoginId(targetTutor?.idLogin || id);
+      setPassword(targetTutor?.password || "123");
     }
   };
 
@@ -319,14 +366,17 @@ export default function App() {
       t => t.idLogin.toLowerCase() === loginId.toLowerCase() && t.status === "aktif"
     );
     
-    if (matchedTutor && (password === matchedTutor.password || password === "123")) {
-      setUserSession({
-        role: "tutor",
-        userId: matchedTutor.id,
-        nama: matchedTutor.nama
-      });
-      setActiveTab("home");
-      return;
+    if (matchedTutor) {
+      const expectedPassword = matchedTutor.password || "123";
+      if (password === expectedPassword) {
+        setUserSession({
+          role: "tutor",
+          userId: matchedTutor.id,
+          nama: matchedTutor.nama
+        });
+        setActiveTab("home");
+        return;
+      }
     }
 
     // 3. Fallback if both fail
@@ -480,7 +530,7 @@ export default function App() {
 
     setDb(nextDb);
     setIsAdminSessionOpen(false);
-    alert("Riwayat pertemuan baru berhasil disimpan oleh Admin.");
+    alert("Riwayat pertemuan baru berhasil disimpan.");
   };
 
   const renderNavigation = () => (
@@ -612,7 +662,7 @@ export default function App() {
               </div>
             </div>
           </div>
-          <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+          <nav className="flex-1 p-4 space-y-1 overflow-y-auto scrollbar-none">
             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-3 ml-2 mt-2">Menu Utama</p>
             {renderNavigation()}
           </nav>
@@ -628,79 +678,80 @@ export default function App() {
         </aside>
       )}
 
-  <div className="flex-1 flex flex-col relative h-full overflow-hidden w-full max-w-full z-20">
+      {/* ==================== MAIN SCREEN CONTENT ==================== */}
+      <div className="flex-1 flex flex-col relative h-full overflow-hidden w-full max-w-full z-20">
         <main className="flex-1 overflow-y-auto scrollbar-none w-full max-w-full md:max-w-[98%] xl:max-w-[96%] mx-auto flex flex-col pb-24 md:pb-8 md:p-8 p-0 md:pt-8">
           
           {/* A. NOT LOGGED IN - SHOW LOGIN PAGE */}
           {!userSession ? (
             <div id="login-screen" className="flex-1 flex flex-col justify-center items-center p-6 animate-fade-in my-auto">
+              <div className="w-full max-w-sm bg-slate-50 p-4 rounded-2xl">
               {/* Logo / Brand Header */}
-              <div className="text-center mb-6 relative z-10">
-              <div className="w-80 h-80 mx-auto mb-4 flex items-center justify-center">
-                <div className="flex items-center gap-2.5">
-                <img src="public13.png" alt="logo" className="w-80 h-80 object-contain" referrerPolicy="no-referrer" />    
+              <div className="text-center mb-6">
+                <div className="w-50 h-50 rounded-2xl flex items-center justify-center mx-auto mb-3.5">
+                  <img src="public9.png" alt="Logo Rumah Belajar" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                 </div>
-                </div>
-                <h1 className="text-2xl font-extrabold text-brand-700 tracking-tight font-display uppercase">
-                  Lets Get Started !
+                <h1 class="text-2xl font-extrabold tracking-tight font-display text-blue-800">
+                  Let's   
+                  <span class="text-blue-500">    Get   </span> 
+                  Started
+                  <span class="text-blue-500">!</span>
                 </h1>
-                <p className="text-xs font-semibold text-brand-500 mt-1">
-                  Aplikasi sistemasi & Automatisasi rumah belajar
-                </p>
+                <p className="text-xs text-blue-400 font-medium">Aplikasi Sistemasi & Automatisasi Rumah Belajar</p>
               </div>
 
               {isRegisterOpen ? (
                 /* Tutor Registration Card */
-                <div className="bg-slate-50 p-6 rounded-3xl animate-fade-in">
-                  <div className="flex items-center gap-2 mb-4 border-b border-slate-200 pb-3">
+                <div>
+                  <div className="flex items-center gap-2 mb-5 border-b border-slate-100 pb-3">
                     <button 
                       type="button" 
                       onClick={() => setIsRegisterOpen(false)}
-                      className="text-blue-400 hover:text-blue-600 transition-all p-1 hover:bg-slate-200 rounded-full"
+                      className="text-blue-400 hover:text-blue-600 transition-all p-1 hover:bg-blue-100 rounded-full"
                     >
                       <ArrowLeft size={16} />
                     </button>
                     <div className="text-left">
-                      <h2 className="text-xs font-extrabold text-blue-900 tracking-tight uppercase">Pendaftaran Tutor Baru</h2>
-                      <p className="text-[10px] text-blue-600">Isi formulir pendaftaran di bawah ini</p>
+                      <h2 className="text-xs font-extrabold text-blue-800 tracking-tight uppercase">Registrasi Akun Tutor</h2>
+                      <p className="text-[10px] text-blue-400">Isi formulir pendaftaran di bawah ini</p>
                     </div>
                   </div>
 
                   <form onSubmit={handleRegisterSubmit} className="space-y-3">
                     <div className="text-left">
-                      <label className="block text-[10px] text-blue-600 font-bold uppercase tracking-wider mb-1">Nama Lengkap Tutor *</label>
+                      <label className="block text-[10px] text-blue-400/80 font-bold uppercase tracking-wider mb-1">Nama Lengkap Tutor *</label>
                       <input
                         type="text"
                         required
                         placeholder="Contoh: Sarah Wijaya, S.Pd."
                         value={regNama}
                         onChange={(e) => setRegNama(e.target.value)}
-                        className="w-full text-xs font-semibold p-2.5 bg-white border border-slate-200 rounded-xl focus:border-blue-500 focus:outline-none transition-all text-blue-950 placeholder:text-slate-400"
+                        className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
                       />
                     </div>
 
                     <div className="text-left">
-                      <label className="block text-[10px] text-blue-600 font-bold uppercase tracking-wider mb-1">ID Login / Username *</label>
+                      <label className="block text-[10px] text-blue-400/80 font-bold uppercase tracking-wider mb-1">ID Login / Username *</label>
                       <input
                         type="text"
                         required
                         placeholder="Contoh: sarah (huruf kecil & tanpa spasi)"
                         value={regIdLogin}
                         onChange={(e) => setRegIdLogin(e.target.value.toLowerCase().replace(/\s+/g, ""))}
-                        className="w-full text-xs font-semibold p-2.5 bg-white border border-slate-200 rounded-xl focus:border-blue-500 focus:outline-none transition-all text-blue-950 placeholder:text-slate-400"
+                        className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
                       />
                     </div>
 
                     <div className="text-left">
-                      <label className="block text-[10px] text-blue-600 font-bold uppercase tracking-wider mb-1">Password Keamanan *</label>
+                      <label className="block text-[10px] text-blue-400/80 font-bold uppercase tracking-wider mb-1">Password Keamanan *</label>
                       <div className="relative">
                         <input
                           type={showRegPassword ? "text" : "password"}
                           required
-                          placeholder="Masukkan password Anda"
+                          placeholder="   Masukkan password Anda"
                           value={regPassword}
                           onChange={(e) => setRegPassword(e.target.value)}
-                          className="w-full text-xs font-semibold p-2.5 pr-10 bg-white border border-slate-200 rounded-xl focus:border-blue-500 focus:outline-none transition-all text-blue-950 placeholder:text-slate-400"
+                          className="w-full text-xs font-semibold p-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
                         />
                         <button
                           type="button"
@@ -714,38 +765,38 @@ export default function App() {
                     </div>
 
                     <div className="text-left">
-                      <label className="block text-[10px] text-blue-600 font-bold uppercase tracking-wider mb-1">Nomor WhatsApp/Telepon *</label>
+                      <label className="block text-[10px] text-blue-400/80 font-bold uppercase tracking-wider mb-1">Nomor WhatsApp/Telepon *</label>
                       <input
                         type="text"
                         required
                         placeholder="Contoh: 081234567890"
                         value={regTelepon}
                         onChange={(e) => setRegTelepon(e.target.value.replace(/[^0-9]/g, ""))}
-                        className="w-full text-xs font-semibold p-2.5 bg-white border border-slate-200 rounded-xl focus:border-blue-500 focus:outline-none transition-all text-blue-950 placeholder:text-slate-400"
+                        className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
                       />
                     </div>
 
                     <div className="text-left">
-                      <label className="block text-[10px] text-blue-600 font-bold uppercase tracking-wider mb-1">Alamat Lengkap (Opsional)</label>
+                      <label className="block text-[10px] text-blue-400/80 font-bold uppercase tracking-wider mb-1">Alamat Lengkap (Opsional)</label>
                       <textarea
                         rows={2}
                         placeholder="Masukkan alamat tinggal Anda saat ini"
                         value={regAlamat}
                         onChange={(e) => setRegAlamat(e.target.value)}
-                        className="w-full text-xs font-semibold p-2.5 bg-white border border-slate-200 rounded-xl focus:border-blue-500 focus:outline-none transition-all resize-none text-blue-950 placeholder:text-slate-400"
+                        className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all resize-none"
                       />
                     </div>
 
-                    <div className="bg-blue-50/70 border border-blue-100 p-2.5 rounded-xl flex items-start gap-1.5 mt-1 text-left">
-                      <Info size={14} className="text-blue-600 shrink-0 mt-0.5" />
-                      <p className="text-[9.5px] text-blue-700 font-semibold leading-relaxed">
+                    <div className="bg-amber-50 border border-amber-100 p-2.5 rounded-xl flex items-start gap-1.5 mt-1 text-left">
+                      <Info size={14} className="text-amber-600 shrink-0 mt-0.5" />
+                      <p className="text-[9.5px] text-amber-700 font-semibold leading-relaxed">
                         Akun baru akan berstatus <span className="font-bold underline">Nonaktif</span> terlebih dahulu untuk verifikasi keamanan oleh Administrator sebelum dapat digunakan untuk login.
                       </p>
                     </div>
 
                     <button
                       type="submit"
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white p-2.5 font-bold text-xs rounded-xl shadow-md cursor-pointer transition-all active:scale-95 mt-2 flex items-center justify-center gap-1.5"
+                      className="w-full bg-brand-600 hover:bg-brand-700 text-white p-2.5 font-bold text-xs rounded-xl shadow-md cursor-pointer transition-all active:scale-95 mt-2 flex items-center justify-center gap-1.5"
                     >
                       <UserPlus size={14} />
                       Kirim Pendaftaran
@@ -754,7 +805,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setIsRegisterOpen(false)}
-                      className="w-full bg-white hover:bg-slate-100 text-blue-600 border border-slate-200 p-2 text-xs font-bold rounded-xl cursor-pointer transition-all active:scale-95"
+                      className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 text-xs font-bold rounded-xl cursor-pointer transition-all active:scale-95"
                     >
                       Kembali ke Login
                     </button>
@@ -763,69 +814,70 @@ export default function App() {
               ) : (
                 <>
                   {/* Login Card */}
-                  <div className="bg-slate-50 p-6 ">
-                    
-                    <form onSubmit={handleLoginSubmit} className="space-y-4">
-                      <div className="text-left">
-                        <input
-                          type="text"
-                          id="login-username-input"
-                          required
-                          placeholder="Masukkan ID login anda"
-                          value={loginId}
-                          onChange={(e) => setLoginId(e.target.value)}
-                          className="w-full text-xs font-semibold p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
-                        />
-                      </div>
+                  <div>                 
+                    <form onSubmit={handleLoginSubmit} className="space-y-4">
+                      <div className="text-left">
+                        <input
+                          type="text"
+                          id="login-username-input"
+                          required
+                          placeholder="Masukkan ID login Anda"
+                          value={loginId}
+                          onChange={(e) => setLoginId(e.target.value)}
+                          className="w-full text-xs font-semibold p-3 bg-slate-50 border-2 border-slate-200 rounded-3xl focus:border-brand-500 focus:outline-none transition-all"
+                        />
+                      </div>
 
-                      <div className="text-left">
-                        <div className="relative">
-                          <input
-                            type={showLoginPassword ? "text" : "password"}
-                            id="login-password-input"
-                            required
-                            placeholder="Masukkan password Anda"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="w-full text-xs font-semibold p-3 pr-10 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowLoginPassword(!showLoginPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer transition-all"
-                            title={showLoginPassword ? "Sembunyikan password" : "Tampilkan password"}
-                          >
-                            {showLoginPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                          </button>
-                        </div>
-                      </div>
+                      <div className="text-left">
+                        <div className="relative">
+                          <input
+                            type={showLoginPassword ? "text" : "password"}
+                            id="login-password-input"
+                            required
+                            placeholder="Masukkan password Anda"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                          className="w-full text-xs font-semibold p-3 bg-slate-50 border-2 border-slate-200 rounded-3xl focus:border-brand-500 focus:outline-none transition-all"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowLoginPassword(!showLoginPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer transition-all"
+                            title={showLoginPassword ? "Sembunyikan password" : "Tampilkan password"}
+                          >
+                            {showLoginPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
+                      </div>
 
-                      <button
-                        type="submit"
-                        id="login-submit-btn"
-                        className="w-full bg-brand-600 hover:bg-brand-700 text-white p-3 font-bold text-xs rounded-xl shadow-md cursor-pointer transition-all active:scale-95 mt-2"
-                      >
-                        Masuk Sistem
-                      </button>
-                    </form>
+                      <button
+                        type="submit"
+                        id="login-submit-btn"
+                        className="w-full bg-blue-500 hover:bg-blue-700 text-white p-3 font-bold text-xs rounded-3xl shadow-md cursor-pointer transition-all active:scale-95 mt-2"
+                      >
+                        Masuk Sistem
+                      </button>
+                    </form>
 
                     {/* CTA Register / Sign Up Section */}
-                    <div className="mt-4 pt-4 border-t border-slate-100 text-center">
-                      <p className="text-[10.5px] text-slate-400 font-medium">Belum punya akun</p>
+                  <div className="mt-6 pt-6 border-t border-blue-200 text-center">
+                    <p className="text-xs text-slate-500">
+                      Belum punya akun?  {'      '}
                       <button
                         type="button"
                         onClick={() => setIsRegisterOpen(true)}
-                        className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-extrabold text-brand-600 hover:text-brand-700 transition-all cursor-pointer active:scale-95"
+                        className="font-extrabold text-blue-500 hover:text-blue-700 hover:underline underline-offset-4 transition-all duration-200 active:scale-95"
                       >
-                        <UserPlus size={13} />
-                        Registrasi Sekarang
+                        Registrasi sekarang!
                       </button>
-                    </div>
+                    </p>
+                  </div>
                   </div>
 
                 </>
               )}
 
+              </div> {/* Close max-w-sm wrapper */}
             </div>
           ) : (
             
@@ -833,20 +885,22 @@ export default function App() {
             <div className="flex-grow shrink-0 animate-fade-in flex flex-col relative z-10 w-full min-h-full bg-white/40 md:bg-white/60 md:backdrop-blur-xl md:rounded-2xl md:shadow-[0_8px_32px_rgba(0,0,0,0.02)] md:border md:border-white/80 overflow-hidden">
               
               {/* Core Header (Sticky header containing sign-out & current user role) */}
-              <div className="bg-brand-500 backdrop-blur-md border-b border-brand-500 px-4 py-3 flex items-center justify-between sticky top-0 z-40 shrink-0">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full shrink-0" />
-                  <span className="text-[10.5px] font-bold text-slate-50 tracking-tight uppercase truncate">
-                    {userSession.role === "admin" ? "Sistem Admin" : "Sesi Tutor"}
-                  </span>
+              <div className="bg-blue-500 backdrop-blur-md border-b border-blue-500 px-4 py-2.5 flex items-center justify-between sticky top-0 z-40 shrink-0 gap-2">
+                {/* Bagian Kiri: Cloud Status Badge */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <CloudStatusBadge
+                    syncState={syncState}
+                    db={db}
+                    onRetrySync={handleRetryCloudSync}
+                  />
                 </div>
 
-                <div className="flex items-center gap-1.5 shrink-0">
-
+                {/* Bagian Kanan: Tombol Keluar */}
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     id="auth-logout-btn"
                     onClick={handleLogout}
-                    className="flex items-center gap-1 text-[10.5px] font-black text-blue-500 bg-blue-50 px-2.5 py-1.5 rounded-lg border border-blue-100 hover:bg-blue-100 transition-colors cursor-pointer"
+                    className="flex items-center gap-1 text-[10.5px] font-black text-blue-100 bg-blue-500 px-2.5 py-1.5 rounded-lg border border-blue-500 hover:bg-blue-800 transition-colors cursor-pointer"
                   >
                     <LogOut size={11} />
                     Keluar
@@ -865,20 +919,20 @@ export default function App() {
                       db={db}
                       onNavigateToTab={handleNavigateToTab}
                       onOpenQuickAction={handleOpenQuickAction}
-                      onUpdateDb={(newDb) => setDb(newDb)}
+                      onUpdateDb={handleUpdateDb}
                     />
                   )}
                   {activeTab === "operasional" && (
                     <AdminOperasional
                       db={db}
-                      onUpdateDb={(newDb) => setDb(newDb)}
+                      onUpdateDb={handleUpdateDb}
                       onNavigateToTab={handleNavigateToTab}
                     />
                   )}
                   {activeTab === "keuangan" && (
                     <AdminKeuangan
                       db={db}
-                      onUpdateDb={(newDb) => setDb(newDb)}
+                      onUpdateDb={handleUpdateDb}
                       selectedEntityId={selectedEntityId}
                       onClearSelectedId={() => setSelectedEntityId("")}
                       quickActionOpen={quickActionOpen}
@@ -889,7 +943,7 @@ export default function App() {
                   {activeTab === "laporan" && (
                     <AdminLaporan
                       db={db}
-                      onUpdateDb={(newDb) => setDb(newDb)}
+                      onUpdateDb={handleUpdateDb}
                       defaultMainTab={laporanSubTab}
                     />
                   )}
@@ -904,21 +958,21 @@ export default function App() {
                       db={db}
                       tutorId={userSession.userId}
                       onNavigateToTab={handleNavigateToTab}
-                      onUpdateDb={(newDb) => setDb(newDb)}
+                      onUpdateDb={handleUpdateDb}
                     />
                   )}
                   {activeTab === "laporan_tutor" && (
                     <TutorLaporan
                       db={db}
                       tutorId={userSession.userId}
-                      onUpdateDb={(newDb) => setDb(newDb)}
+                      onUpdateDb={handleUpdateDb}
                     />
                   )}
                   {activeTab === "riwayat" && (
                     <TutorRiwayat
                       db={db}
                       tutorId={userSession.userId}
-                      onUpdateDb={(newDb) => setDb(newDb)}
+                      onUpdateDb={handleUpdateDb}
                     />
                   )}
                   {activeTab === "rekening" && (
@@ -942,7 +996,7 @@ export default function App() {
         )}
 
       </div>
-      
+
       {/* ========================================================
           ADMIN MODAL: RECORD NEW SESSION DIRECT FROM HOME
           ======================================================== */}
