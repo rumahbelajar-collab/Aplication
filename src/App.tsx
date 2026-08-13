@@ -299,34 +299,31 @@ export default function App() {
       if (remoteDb && !isEmptyDatabase(remoteDb)) {
         setDb(remoteDb);
         safeSetItem(DB_STORAGE_KEY, JSON.stringify(remoteDb));
-        alert("Berhasil memulihkan data dari Supabase Cloud!");
+        alert("Berhasil memulihkan data dari Cloud!");
         return;
       }
     }
 
     const success = await pushToSupabase(db, true);
     if (success) {
-      alert("Berhasil menyinkronkan data ke Supabase Cloud!");
+      alert("Berhasil menyinkronkan data ke Cloud!");
     } else {
-      alert("Gagal menyinkronkan ke Supabase Cloud. Mohon periksa koneksi internet Anda.");
+      alert("Gagal menyinkronkan ke Cloud. Mohon periksa koneksi internet Anda.");
     }
   };
 
   if (isInitialLoading || !db) {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-center text-white font-sans">
-        <div className="w-16 h-16 bg-brand-600/20 border border-brand-500/40 rounded-2xl flex items-center justify-center mb-6 shadow-xl relative">
-          <GraduationCap size={32} className="text-brand-400" />
-          <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center border-2 border-slate-900 shadow-sm">
-            <Cloud size={11} className="text-white animate-pulse" />
-          </div>
-        </div>
+        <div className="flex items-center gap-2.5">
+            <img src="public2.png" alt="logo" className="w-20 h-20 object-contain" referrerPolicy="no-referrer" />    
+            </div>
         <div className="flex items-center gap-2 mb-2">
           <RefreshCw size={16} className="text-brand-400 animate-spin" />
-          <h3 className="text-base font-extrabold tracking-wide font-display text-white">Menghubungkan ke Supabase Cloud...</h3>
+          <h3 className="text-base font-extrabold tracking-wide font-display text-white">Menghubungkan ke Cloud...</h3>
         </div>
         <p className="text-xs text-slate-400 font-medium max-w-xs leading-relaxed">
-          Mengambil data terbaru dari server Supabase sebagai sumber data utama.
+          Mengambil data terbaru dari server sebagai sumber data utama.
         </p>
       </div>
     );
@@ -634,7 +631,7 @@ export default function App() {
   );
 
   return (
-    <div className="h-screen bg-slate-50 font-sans antialiased relative overflow-hidden flex flex-col md:flex-row">
+    <div className="h-screen bg-slate-50 font-sans antialiased relative overflow-hidden scrollbar-none flex flex-col md:flex-row">
       
       {/* Abstract Background Blurs for Desktop/Tablet */}
       <div className="hidden md:block absolute -top-[10%] -left-[10%] w-[50vw] h-[50vw] bg-brand-100/50 rounded-full blur-[120px] pointer-events-none" />
@@ -664,7 +661,7 @@ export default function App() {
               </div>
             </div>
           </div>
-          <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+          <nav className="flex-1 p-4 space-y-1 overflow-y-auto scrollbar-none">
             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-3 ml-2 mt-2">Menu Utama</p>
             {renderNavigation()}
           </nav>
@@ -681,8 +678,8 @@ export default function App() {
       )}
 
       {/* ==================== MAIN SCREEN CONTENT ==================== */}
-      <div className="flex-1 flex flex-col relative h-full overflow-hidden w-full max-w-full z-20">
-        <main className="flex-1 overflow-y-auto w-full max-w-full md:max-w-[98%] xl:max-w-[96%] mx-auto flex flex-col pb-24 md:pb-8 md:p-8 p-0 md:pt-8">
+      <div className="flex-1 flex flex-col relative h-full overflow-hidden scrollbar-none w-full max-w-full z-20">
+        <main className="flex-1 overflow-y-auto scrollbar-none w-full max-w-full md:max-w-[98%] xl:max-w-[96%] mx-auto flex flex-col pb-24 md:pb-8 md:p-8 p-0 md:pt-8">
           
           {/* A. NOT LOGGED IN - SHOW LOGIN PAGE */}
           {!userSession ? (
@@ -884,7 +881,7 @@ export default function App() {
           ) : (
             
             // B. ACTIVE USER TAB CONTENT SECTIONS
-            <div className="flex-grow shrink-0 animate-fade-in flex flex-col relative z-10 w-full min-h-full bg-white/40 md:bg-white/60 md:backdrop-blur-xl md:rounded-2xl md:shadow-[0_8px_32px_rgba(0,0,0,0.02)] md:border md:border-white/80 overflow-hidden">
+            <div className="flex-grow shrink-0 animate-fade-in flex flex-col relative z-10 w-full min-h-full bg-white/40 md:bg-white/60 md:backdrop-blur-xl md:rounded-2xl md:shadow-[0_8px_32px_rgba(0,0,0,0.02)] md:border md:border-white/80 overflow-hidden scrollbar-none">
               
               {/* Core Header (Sticky header containing sign-out & current user role) */}
               <div className="bg-blue-500 backdrop-blur-md border-b border-blue-500 px-4 py-2.5 flex items-center justify-between sticky top-0 z-40 shrink-0 gap-2">
@@ -1004,7 +1001,7 @@ export default function App() {
           ======================================================== */}
       {isAdminSessionOpen && (
         <div id="admin-quick-session-modal" className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-55 animate-fade-in">
-          <div className="bg-white w-full max-w-sm rounded-3xl shadow-xl overflow-hidden animate-slide-up">
+          <div className="bg-white w-full max-w-sm rounded-3xl shadow-xl overflow-hidden scrollbar-none animate-slide-up">
             <div className="bg-brand-600 text-white p-4 flex justify-between items-center">
               <h3 className="font-bold text-sm tracking-tight">Catat Riwayat Sesi (Admin)</h3>
               <PlusCircle size={18} />

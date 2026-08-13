@@ -130,188 +130,202 @@ export async function pushToSupabase(db: Database, isForce = false): Promise<boo
     return false;
   }
 
-  try {
-    const { error } = await supabase
-      .from("rumah_belajar_db")
-      .upsert({ 
-        id: "main_v1", 
-        data: dbToPush, 
-        updated_at: new Date().toISOString() 
-      }, {
-        onConflict: "id"
-      });
+  const timeoutPromise = new Promise<boolean>((resolve) => {
+    setTimeout(() => {
+      console.warn("Supabase pushToSupabase timed out after 5000ms");
+      updateSyncState({ status: "error", errorMessage: "Koneksi ke Supabase terhenti (Timeout). Database Supabase perlu di-restart." });
+      resolve(false);
+    }, 5000);
+  });
 
-    if (error) {
-      console.warn("Supabase push warning:", error);
-      const isMissingTable = error.code === "P0001" || 
-        error.message?.includes("relation") || 
-        error.message?.includes("does not exist") || 
-        error.message?.includes("schema cache") || 
-        error.message?.includes("Could not find the table");
+  const pushTask = (async (): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from("rumah_belajar_db")
+        .upsert({ 
+          id: "main_v1", 
+          data: dbToPush, 
+          updated_at: new Date().toISOString() 
+        }, {
+          onConflict: "id"
+        });
 
-      if (isMissingTable) {
-        updateSyncState({ status: "table_missing", errorMessage: "Tabel 'rumah_belajar_db' belum terbuat di Supabase." });
-      } else {
-        updateSyncState({ status: "error", errorMessage: error.message || "Gagal mengunggah data ke Supabase." });
+      if (error) {
+        console.warn("Supabase push warning:", error);
+        const isMissingTable = error.code === "P0001" || 
+          error.message?.includes("relation") || 
+          error.message?.includes("does not exist") || 
+          error.message?.includes("schema cache") || 
+          error.message?.includes("Could not find the table");
+
+        if (isMissingTable) {
+          updateSyncState({ status: "table_missing", errorMessage: "Tabel 'rumah_belajar_db' belum terbuat di Supabase." });
+        } else {
+          updateSyncState({ status: "error", errorMessage: error.message || "Gagal mengunggah data ke Supabase." });
+        }
+        return false;
       }
+
+      // Best-effort push to relational tables if they exist in Supabase
+      if (dbToPush.tutors) {
+        try {
+          if (dbToPush.tutors.length > 0) {
+            const tutorPayload = dbToPush.tutors.map(t => ({
+              id: t.id,
+              nama: t.nama,
+              id_login: t.idLogin,
+              password: t.password || "123",
+              status: t.status || "aktif",
+              telepon: t.telepon || "",
+              alamat: t.alamat || "",
+              tanggal_bergabung: t.tanggalBergabung || new Date().toISOString().slice(0, 10)
+            }));
+            await supabase.from("tutor").upsert(tutorPayload, { onConflict: "id" });
+          }
+        } catch (e) {}
+      }
+
+      if (dbToPush.students) {
+        try {
+          if (dbToPush.students.length > 0) {
+            const studentPayload = dbToPush.students.map(s => ({
+              id: s.id,
+              nama: s.nama,
+              program_id: s.programId || "",
+              status: s.status || "aktif",
+              telepon_orang_tua: s.teleponOrangTua || "",
+              alamat: s.alamat || "",
+              tanggal_daftar: s.tanggalDaftar || new Date().toISOString().slice(0, 10)
+            }));
+            await supabase.from("siswa").upsert(studentPayload, { onConflict: "id" });
+          }
+        } catch (e) {}
+      }
+
+      if (dbToPush.programs) {
+        try {
+          if (dbToPush.programs.length > 0) {
+            const payload = dbToPush.programs.map(p => ({
+              id: p.id, nama: p.nama, jenjang: p.jenjang, mapel: p.mapel,
+              durasi: p.durasi, tarif_siswa: p.tarifSiswa, honor_tutor: p.honorTutor,
+              status: p.status || "aktif"
+            }));
+            await supabase.from("program").upsert(payload, { onConflict: "id" });
+          }
+        } catch (e) {}
+      }
+
+      if (dbToPush.kas) {
+        try {
+          if (dbToPush.kas.length > 0) {
+            const payload = dbToPush.kas.map(k => ({
+              id: k.id, tanggal: k.tanggal, tipe: k.tipe, keterangan: k.keterangan,
+              jumlah: k.jumlah, saldo_berjalan: k.saldoBerjalan
+            }));
+            await supabase.from("kas").upsert(payload, { onConflict: "id" });
+          }
+        } catch (e) {}
+      }
+
+      if (dbToPush.payments) {
+        try {
+          if (dbToPush.payments.length > 0) {
+            const payload = dbToPush.payments.map(p => ({
+              id: p.id, tanggal: p.tanggal, siswa_id: p.siswaId, siswa_nama: p.siswaNama,
+              jumlah: p.jumlah, metode: p.metode, tutor_id: p.tutorId || null,
+              tutor_nama: p.tutorNama || null, status_titipan: p.statusTitipan,
+              tanggal_serah: p.tanggalSerah || null
+            }));
+            await supabase.from("pembayaran").upsert(payload, { onConflict: "id" });
+          }
+        } catch (e) {}
+      }
+
+      if (dbToPush.attendanceReports) {
+        try {
+          if (dbToPush.attendanceReports.length > 0) {
+            const payload = dbToPush.attendanceReports.map(a => ({
+              id: a.id, tanggal: a.tanggal, tutor_id: a.tutorId, tutor_nama: a.tutorNama,
+              siswa_id: a.siswaId, siswa_nama: a.siswaNama, program_id: a.programId,
+              program_nama: a.programNama, foto_jurnal: a.fotoJurnal, keterangan: a.keterangan || null,
+              status: a.status || "pending", catatan_admin: a.catatanAdmin || null,
+              tanggal_proses: a.tanggalProses || null
+            }));
+            await supabase.from("laporan_kehadiran").upsert(payload, { onConflict: "id" });
+          }
+        } catch (e) {}
+      }
+
+      if (dbToPush.tutorLedger) {
+        try {
+          if (dbToPush.tutorLedger.length > 0) {
+            const payload = dbToPush.tutorLedger.map(l => ({
+              id: l.id, tanggal: l.tanggal, tutor_id: l.tutorId, tipe: l.tipe,
+              keterangan: l.keterangan, jumlah: l.jumlah, saldo_berjalan: l.saldoBerjalan,
+              referensi_id: l.referensiId || null
+            }));
+            await supabase.from("transaksi_tutor").upsert(payload, { onConflict: "id" });
+          }
+        } catch (e) {}
+      }
+
+      if (dbToPush.slips) {
+        try {
+          if (dbToPush.slips.length > 0) {
+            const payload = dbToPush.slips.map(s => ({
+              id: s.id, tanggal: s.tanggal, tutor_id: s.tutorId, tutor_nama: s.tutorNama,
+              jumlah: s.jumlah, periode: s.periode, catatan: s.catatan || null,
+              potongan: s.potongan || 0, keterangan_potongan: s.keteranganPotongan || null,
+              total_honor: s.totalHonor || 0
+            }));
+            await supabase.from("slip_gaji").upsert(payload, { onConflict: "id" });
+          }
+        } catch (e) {}
+      }
+
+      if (dbToPush.studentLedger) {
+        try {
+          if (dbToPush.studentLedger.length > 0) {
+            const payload = dbToPush.studentLedger.map(l => ({
+              id: l.id, tanggal: l.tanggal, siswa_id: l.siswaId, tipe: l.tipe,
+              keterangan: l.keterangan, jumlah: l.jumlah, saldo_berjalan: l.saldoBerjalan,
+              referensi_id: l.referensiId || null
+            }));
+            await supabase.from("transaksi_siswa").upsert(payload, { onConflict: "id" });
+          }
+        } catch (e) {}
+      }
+
+      if (dbToPush.sessions) {
+        try {
+          if (dbToPush.sessions.length > 0) {
+            const payload = dbToPush.sessions.map(s => ({
+              id: s.id, tanggal: s.tanggal, siswa_id: s.siswaId, siswa_nama: s.siswaNama,
+              tutor_id: s.tutorId, tutor_nama: s.tutorNama, program_id: s.programId,
+              program_nama: s.programNama, tarif_siswa_snapshot: s.tarifSiswaSnapshot,
+              honor_tutor_snapshot: s.honorTutorSnapshot, catatan: s.catatan || null
+            }));
+            await supabase.from("sesi").upsert(payload, { onConflict: "id" });
+          }
+        } catch (e) {}
+      }
+
+      const syncTime = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " WIB";
+      safeSetItem("supabase_last_synced", syncTime);
+      updateSyncState({ 
+        status: "success", 
+        lastSynced: syncTime,
+        errorMessage: null 
+      });
+      return true;
+    } catch (err: any) {
+      console.warn("Supabase network warning:", err);
+      updateSyncState({ status: "error", errorMessage: err.message || "Koneksi ke Supabase terputus." });
       return false;
     }
+  })();
 
-    // Best-effort push to relational tables if they exist in Supabase
-    if (dbToPush.tutors) {
-      try {
-        if (dbToPush.tutors.length > 0) {
-          const tutorPayload = dbToPush.tutors.map(t => ({
-            id: t.id,
-            nama: t.nama,
-            id_login: t.idLogin,
-            password: t.password || "123",
-            status: t.status || "aktif",
-            telepon: t.telepon || "",
-            alamat: t.alamat || "",
-            tanggal_bergabung: t.tanggalBergabung || new Date().toISOString().slice(0, 10)
-          }));
-          await supabase.from("tutor").upsert(tutorPayload, { onConflict: "id" });
-        }
-      } catch (e) {}
-    }
-
-    if (dbToPush.students) {
-      try {
-        if (dbToPush.students.length > 0) {
-          const studentPayload = dbToPush.students.map(s => ({
-            id: s.id,
-            nama: s.nama,
-            program_id: s.programId || "",
-            status: s.status || "aktif",
-            telepon_orang_tua: s.teleponOrangTua || "",
-            alamat: s.alamat || "",
-            tanggal_daftar: s.tanggalDaftar || new Date().toISOString().slice(0, 10)
-          }));
-          await supabase.from("siswa").upsert(studentPayload, { onConflict: "id" });
-        }
-      } catch (e) {}
-    }
-
-    if (dbToPush.programs) {
-      try {
-        if (dbToPush.programs.length > 0) {
-          const payload = dbToPush.programs.map(p => ({
-            id: p.id, nama: p.nama, jenjang: p.jenjang, mapel: p.mapel,
-            durasi: p.durasi, tarif_siswa: p.tarifSiswa, honor_tutor: p.honorTutor,
-            status: p.status || "aktif"
-          }));
-          await supabase.from("program").upsert(payload, { onConflict: "id" });
-        }
-      } catch (e) {}
-    }
-
-    if (dbToPush.kas) {
-      try {
-        if (dbToPush.kas.length > 0) {
-          const payload = dbToPush.kas.map(k => ({
-            id: k.id, tanggal: k.tanggal, tipe: k.tipe, keterangan: k.keterangan,
-            jumlah: k.jumlah, saldo_berjalan: k.saldoBerjalan
-          }));
-          await supabase.from("kas").upsert(payload, { onConflict: "id" });
-        }
-      } catch (e) {}
-    }
-
-    if (dbToPush.payments) {
-      try {
-        if (dbToPush.payments.length > 0) {
-          const payload = dbToPush.payments.map(p => ({
-            id: p.id, tanggal: p.tanggal, siswa_id: p.siswaId, siswa_nama: p.siswaNama,
-            jumlah: p.jumlah, metode: p.metode, tutor_id: p.tutorId || null,
-            tutor_nama: p.tutorNama || null, status_titipan: p.statusTitipan,
-            tanggal_serah: p.tanggalSerah || null
-          }));
-          await supabase.from("pembayaran").upsert(payload, { onConflict: "id" });
-        }
-      } catch (e) {}
-    }
-
-    if (dbToPush.attendanceReports) {
-      try {
-        if (dbToPush.attendanceReports.length > 0) {
-          const payload = dbToPush.attendanceReports.map(a => ({
-            id: a.id, tanggal: a.tanggal, tutor_id: a.tutorId, tutor_nama: a.tutorNama,
-            siswa_id: a.siswaId, siswa_nama: a.siswaNama, program_id: a.programId,
-            program_nama: a.programNama, foto_jurnal: a.fotoJurnal, keterangan: a.keterangan || null,
-            status: a.status || "pending", catatan_admin: a.catatanAdmin || null,
-            tanggal_proses: a.tanggalProses || null
-          }));
-          await supabase.from("laporan_kehadiran").upsert(payload, { onConflict: "id" });
-        }
-      } catch (e) {}
-    }
-
-    if (dbToPush.tutorLedger) {
-      try {
-        if (dbToPush.tutorLedger.length > 0) {
-          const payload = dbToPush.tutorLedger.map(l => ({
-            id: l.id, tanggal: l.tanggal, tutor_id: l.tutorId, tipe: l.tipe,
-            keterangan: l.keterangan, jumlah: l.jumlah, saldo_berjalan: l.saldoBerjalan,
-            referensi_id: l.referensiId || null
-          }));
-          await supabase.from("transaksi_tutor").upsert(payload, { onConflict: "id" });
-        }
-      } catch (e) {}
-    }
-
-    if (dbToPush.slips) {
-      try {
-        if (dbToPush.slips.length > 0) {
-          const payload = dbToPush.slips.map(s => ({
-            id: s.id, tanggal: s.tanggal, tutor_id: s.tutorId, tutor_nama: s.tutorNama,
-            jumlah: s.jumlah, periode: s.periode, catatan: s.catatan || null,
-            potongan: s.potongan || 0, keterangan_potongan: s.keteranganPotongan || null,
-            total_honor: s.totalHonor || 0
-          }));
-          await supabase.from("slip_gaji").upsert(payload, { onConflict: "id" });
-        }
-      } catch (e) {}
-    }
-
-    if (dbToPush.studentLedger) {
-      try {
-        if (dbToPush.studentLedger.length > 0) {
-          const payload = dbToPush.studentLedger.map(l => ({
-            id: l.id, tanggal: l.tanggal, siswa_id: l.siswaId, tipe: l.tipe,
-            keterangan: l.keterangan, jumlah: l.jumlah, saldo_berjalan: l.saldoBerjalan,
-            referensi_id: l.referensiId || null
-          }));
-          await supabase.from("transaksi_siswa").upsert(payload, { onConflict: "id" });
-        }
-      } catch (e) {}
-    }
-
-    if (dbToPush.sessions) {
-      try {
-        if (dbToPush.sessions.length > 0) {
-          const payload = dbToPush.sessions.map(s => ({
-            id: s.id, tanggal: s.tanggal, siswa_id: s.siswaId, siswa_nama: s.siswaNama,
-            tutor_id: s.tutorId, tutor_nama: s.tutorNama, program_id: s.programId,
-            program_nama: s.programNama, tarif_siswa_snapshot: s.tarifSiswaSnapshot,
-            honor_tutor_snapshot: s.honorTutorSnapshot, catatan: s.catatan || null
-          }));
-          await supabase.from("sesi").upsert(payload, { onConflict: "id" });
-        }
-      } catch (e) {}
-    }
-
-
-    updateSyncState({ 
-      status: "success", 
-      lastSynced: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " WIB" 
-    });
-    return true;
-  } catch (err: any) {
-    console.warn("Supabase network warning:", err);
-    updateSyncState({ status: "error", errorMessage: err.message || "Koneksi ke Supabase terputus." });
-    return false;
-  }
+  return Promise.race([pushTask, timeoutPromise]);
 }
 
 /**
