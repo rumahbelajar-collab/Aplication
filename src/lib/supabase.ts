@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { Database, ensureDatabaseDefaults } from "./db";
+import { Database, ensureDatabaseDefaults, mergeDatabases } from "./db";
 import { Tutor, Siswa } from "../types";
 
 // Configuration from env or defaults
@@ -119,33 +119,40 @@ export async function pushToSupabase(db: Database, isForce = false): Promise<boo
     return false;
   }
 
-  // Safety guard: Prevent pushing an empty database over an existing non-empty database on remote
-  if (isEmptyDatabase(db) && !isForce) {
-    try {
-      const { data: existingRemote } = await supabase
-        .from("rumah_belajar_db")
-        .select("data")
-        .eq("id", "main_v1")
-        .maybeSingle();
-
-      if (existingRemote && existingRemote.data && !isEmptyDatabase(existingRemote.data)) {
-        console.warn("Safety Guard: Blocked attempt to overwrite non-empty Supabase database with an empty local database.");
-        updateSyncState({ status: "idle", errorMessage: null });
-        return false;
-      }
-    } catch (e) {
-      // Ignore check errors and proceed safely
-    }
-  }
-  
   updateSyncState({ status: "syncing", errorMessage: null });
-  
+
+  let dbToPush = db;
+
+  // Fetch current remote state first so concurrent writes from other users are merged instead of overwritten!
+  try {
+    const { data: existingRemote } = await supabase
+      .from("rumah_belajar_db")
+      .select("data")
+      .eq("id", "main_v1")
+      .maybeSingle();
+
+    if (existingRemote && existingRemote.data && !isEmptyDatabase(existingRemote.data)) {
+      dbToPush = mergeDatabases(db, existingRemote.data);
+      // Update local storage so this client immediately retains merged data
+      safeSetItem("rumah_belajar_db", JSON.stringify(dbToPush));
+    }
+  } catch (e) {
+    // Ignore fetch error and fallback to pushing local db
+  }
+
+  // Safety guard: Prevent pushing an empty database over an existing non-empty database on remote
+  if (isEmptyDatabase(dbToPush) && !isForce) {
+    console.warn("Safety Guard: Blocked attempt to overwrite non-empty Supabase database with an empty database.");
+    updateSyncState({ status: "idle", errorMessage: null });
+    return false;
+  }
+
   try {
     const { error } = await supabase
       .from("rumah_belajar_db")
       .upsert({ 
         id: "main_v1", 
-        data: db, 
+        data: dbToPush, 
         updated_at: new Date().toISOString() 
       }, {
         onConflict: "id"
@@ -168,9 +175,9 @@ export async function pushToSupabase(db: Database, isForce = false): Promise<boo
     }
 
     // Best-effort push to relational tables 'tutor' and 'siswa' if they exist in Supabase
-    if (db.tutors && db.tutors.length > 0) {
+    if (dbToPush.tutors && dbToPush.tutors.length > 0) {
       try {
-        const tutorPayload = db.tutors.map(t => ({
+        const tutorPayload = dbToPush.tutors.map(t => ({
           id: t.id,
           nama: t.nama,
           id_login: t.idLogin,
@@ -187,9 +194,9 @@ export async function pushToSupabase(db: Database, isForce = false): Promise<boo
     }
 
 
-    if (db.students && db.students.length > 0) {
+    if (dbToPush.students && dbToPush.students.length > 0) {
       try {
-        const studentPayload = db.students.map(s => ({
+        const studentPayload = dbToPush.students.map(s => ({
           id: s.id,
           nama: s.nama,
           program_id: s.programId || "",
@@ -202,9 +209,9 @@ export async function pushToSupabase(db: Database, isForce = false): Promise<boo
       } catch (e) {}
     }
 
-    if (db.programs && db.programs.length > 0) {
+    if (dbToPush.programs && dbToPush.programs.length > 0) {
       try {
-        const payload = db.programs.map(p => ({
+        const payload = dbToPush.programs.map(p => ({
           id: p.id, nama: p.nama, jenjang: p.jenjang, mapel: p.mapel,
           durasi: p.durasi, tarif_siswa: p.tarifSiswa, honor_tutor: p.honorTutor,
           status: p.status || "aktif"
@@ -213,9 +220,9 @@ export async function pushToSupabase(db: Database, isForce = false): Promise<boo
       } catch (e) {}
     }
 
-    if (db.kas && db.kas.length > 0) {
+    if (dbToPush.kas && dbToPush.kas.length > 0) {
       try {
-        const payload = db.kas.map(k => ({
+        const payload = dbToPush.kas.map(k => ({
           id: k.id, tanggal: k.tanggal, tipe: k.tipe, keterangan: k.keterangan,
           jumlah: k.jumlah, saldo_berjalan: k.saldoBerjalan
         }));
@@ -223,9 +230,9 @@ export async function pushToSupabase(db: Database, isForce = false): Promise<boo
       } catch (e) {}
     }
 
-    if (db.payments && db.payments.length > 0) {
+    if (dbToPush.payments && dbToPush.payments.length > 0) {
       try {
-        const payload = db.payments.map(p => ({
+        const payload = dbToPush.payments.map(p => ({
           id: p.id, tanggal: p.tanggal, siswa_id: p.siswaId, siswa_nama: p.siswaNama,
           jumlah: p.jumlah, metode: p.metode, tutor_id: p.tutorId || null,
           tutor_nama: p.tutorNama || null, status_titipan: p.statusTitipan,
@@ -237,9 +244,9 @@ export async function pushToSupabase(db: Database, isForce = false): Promise<boo
 
 
 
-    if (db.attendanceReports && db.attendanceReports.length > 0) {
+    if (dbToPush.attendanceReports && dbToPush.attendanceReports.length > 0) {
       try {
-        const payload = db.attendanceReports.map(a => ({
+        const payload = dbToPush.attendanceReports.map(a => ({
           id: a.id, tanggal: a.tanggal, tutor_id: a.tutorId, tutor_nama: a.tutorNama,
           siswa_id: a.siswaId, siswa_nama: a.siswaNama, program_id: a.programId,
           program_nama: a.programNama, foto_jurnal: a.fotoJurnal, keterangan: a.keterangan || null,
@@ -250,10 +257,10 @@ export async function pushToSupabase(db: Database, isForce = false): Promise<boo
       } catch (e) {}
     }
 
-    if (db.tutorLedger && db.tutorLedger.length > 0) {
+    if (dbToPush.tutorLedger && dbToPush.tutorLedger.length > 0) {
 
       try {
-        const payload = db.tutorLedger.map(l => ({
+        const payload = dbToPush.tutorLedger.map(l => ({
           id: l.id, tanggal: l.tanggal, tutor_id: l.tutorId, tipe: l.tipe,
           keterangan: l.keterangan, jumlah: l.jumlah, saldo_berjalan: l.saldoBerjalan,
           referensi_id: l.referensiId || null
@@ -262,9 +269,9 @@ export async function pushToSupabase(db: Database, isForce = false): Promise<boo
       } catch (e) {}
     }
 
-    if (db.slips && db.slips.length > 0) {
+    if (dbToPush.slips && dbToPush.slips.length > 0) {
       try {
-        const payload = db.slips.map(s => ({
+        const payload = dbToPush.slips.map(s => ({
           id: s.id, tanggal: s.tanggal, tutor_id: s.tutorId, tutor_nama: s.tutorNama,
           jumlah: s.jumlah, periode: s.periode, catatan: s.catatan || null,
           potongan: s.potongan || 0, keterangan_potongan: s.keteranganPotongan || null,
@@ -274,10 +281,10 @@ export async function pushToSupabase(db: Database, isForce = false): Promise<boo
       } catch (e) {}
     }
 
-    if (db.studentLedger && db.studentLedger.length > 0) {
+    if (dbToPush.studentLedger && dbToPush.studentLedger.length > 0) {
 
       try {
-        const payload = db.studentLedger.map(l => ({
+        const payload = dbToPush.studentLedger.map(l => ({
           id: l.id, tanggal: l.tanggal, siswa_id: l.siswaId, tipe: l.tipe,
           keterangan: l.keterangan, jumlah: l.jumlah, saldo_berjalan: l.saldoBerjalan,
           referensi_id: l.referensiId || null
@@ -286,9 +293,9 @@ export async function pushToSupabase(db: Database, isForce = false): Promise<boo
       } catch (e) {}
     }
 
-    if (db.sessions && db.sessions.length > 0) {
+    if (dbToPush.sessions && dbToPush.sessions.length > 0) {
       try {
-        const payload = db.sessions.map(s => ({
+        const payload = dbToPush.sessions.map(s => ({
           id: s.id, tanggal: s.tanggal, siswa_id: s.siswaId, siswa_nama: s.siswaNama,
           tutor_id: s.tutorId, tutor_nama: s.tutorNama, program_id: s.programId,
           program_nama: s.programNama, tarif_siswa_snapshot: s.tarifSiswaSnapshot,

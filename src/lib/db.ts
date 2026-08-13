@@ -244,6 +244,12 @@ export function getDatabase(): Database {
   return db;
 }
 
+export function generateUniqueId(prefix: string): string {
+  const timeStr = Date.now().toString().slice(-6);
+  const randNum = Math.floor(Math.random() * 1000).toString().padStart(3, "0");
+  return `${prefix}-${timeStr}${randNum}`;
+}
+
 export function saveDatabase(db: Database): void {
   const sanitized = ensureDatabaseDefaults(db);
   safeSetItem(DB_STORAGE_KEY, JSON.stringify(sanitized));
@@ -326,7 +332,7 @@ export function addSessionTransaction(
   }
 
   // Generate ID
-  const newId = `RP-${String(nextDb.sessions.length + 1).padStart(4, "0")}`;
+  const newId = generateUniqueId("RP");
   
   // Create Riwayat Pertemuan
   const newSession: RiwayatPertemuan = {
@@ -348,7 +354,7 @@ export function addSessionTransaction(
   const studentTxList = nextDb.studentLedger.filter(tx => tx.siswaId === student.id);
   const studentCurrentSaldo = studentTxList.length > 0 ? studentTxList[studentTxList.length - 1].saldoBerjalan : 0;
   const newStudentTx: TransaksiRekeningSiswa = {
-    id: `TXS-${String(nextDb.studentLedger.length + 1).padStart(4, "0")}`,
+    id: generateUniqueId("TXS"),
     tanggal: data.tanggal,
     siswaId: student.id,
     tipe: "debit",
@@ -363,7 +369,7 @@ export function addSessionTransaction(
   const tutorTxList = nextDb.tutorLedger.filter(tx => tx.tutorId === tutor.id);
   const tutorCurrentSaldo = tutorTxList.length > 0 ? tutorTxList[tutorTxList.length - 1].saldoBerjalan : 0;
   const newTutorTx: TransaksiHonorTutor = {
-    id: `TXT-${String(nextDb.tutorLedger.length + 1).padStart(4, "0")}`,
+    id: generateUniqueId("TXT"),
     tanggal: data.tanggal,
     tutorId: tutor.id,
     tipe: "kredit",
@@ -393,7 +399,7 @@ export function addPaymentTransaction(
   const student = nextDb.students.find(s => s.id === data.siswaId)!;
   const tutor = data.tutorId ? nextDb.tutors.find(t => t.id === data.tutorId) : undefined;
 
-  const payId = `PAY-${String(nextDb.payments.length + 1).padStart(4, "0")}`;
+  const payId = generateUniqueId("PAY");
   
   const newPayment: PembayaranSiswa = {
     id: payId,
@@ -414,7 +420,7 @@ export function addPaymentTransaction(
     const studentTxList = nextDb.studentLedger.filter(tx => tx.siswaId === student.id);
     const studentCurrentSaldo = studentTxList.length > 0 ? studentTxList[studentTxList.length - 1].saldoBerjalan : 0;
     const newStudentTx: TransaksiRekeningSiswa = {
-      id: `TXS-${String(nextDb.studentLedger.length + 1).padStart(4, "0")}`,
+      id: generateUniqueId("TXS"),
       tanggal: data.tanggal,
       siswaId: student.id,
       tipe: "kredit",
@@ -430,7 +436,7 @@ export function addPaymentTransaction(
   if (data.metode === "admin") {
     const prevKasSaldo = nextDb.kas.length > 0 ? nextDb.kas[nextDb.kas.length - 1].saldoBerjalan : 0;
     const newKasTx: KasLembaga = {
-      id: `KAS-${String(nextDb.kas.length + 1).padStart(4, "0")}`,
+      id: generateUniqueId("KAS"),
       tanggal: data.tanggal,
       tipe: "masuk",
       keterangan: `Pembayaran Siswa [${payId}] - ${student.nama}`,
@@ -477,7 +483,7 @@ export function confirmTutorDepositHandover(
   const studentTxList = nextDb.studentLedger.filter(tx => tx.siswaId === payment.siswaId);
   const studentCurrentSaldo = studentTxList.length > 0 ? studentTxList[studentTxList.length - 1].saldoBerjalan : 0;
   const newStudentTx: TransaksiRekeningSiswa = {
-    id: `TXS-${String(nextDb.studentLedger.length + 1).padStart(4, "0")}`,
+    id: generateUniqueId("TXS"),
     tanggal: tanggalSerah,
     siswaId: payment.siswaId,
     tipe: "kredit",
@@ -491,7 +497,7 @@ export function confirmTutorDepositHandover(
   // Insert into General Kas Lembaga
   const prevKasSaldo = nextDb.kas.length > 0 ? nextDb.kas[nextDb.kas.length - 1].saldoBerjalan : 0;
   const newKasTx: KasLembaga = {
-    id: `KAS-${String(nextDb.kas.length + 1).padStart(4, "0")}`,
+    id: generateUniqueId("KAS"),
     tanggal: tanggalSerah,
     tipe: "masuk",
     keterangan: `Penerimaan Titipan Tutor [${payment.id}] - ${payment.tutorNama} (Siswa: ${payment.siswaNama})`,
@@ -585,7 +591,7 @@ export function payTutorHonorTransaction(
   const nextDb = { ...db };
   const tutor = nextDb.tutors.find(t => t.id === data.tutorId)!;
 
-  const slipId = `SG-${String(nextDb.slips.length + 1).padStart(4, "0")}`;
+  const slipId = generateUniqueId("SG");
   const potonganAmt = data.potongan || 0;
   const netPaid = Math.max(0, data.jumlah - potonganAmt);
   
@@ -607,7 +613,7 @@ export function payTutorHonorTransaction(
   const tutorTxList = nextDb.tutorLedger.filter(tx => tx.tutorId === tutor.id);
   const tutorCurrentSaldo = tutorTxList.length > 0 ? tutorTxList[tutorTxList.length - 1].saldoBerjalan : 0;
   const newTutorTx: TransaksiHonorTutor = {
-    id: `TXT-${String(nextDb.tutorLedger.length + 1).padStart(4, "0")}`,
+    id: generateUniqueId("TXT"),
     tanggal: data.tanggal,
     tutorId: tutor.id,
     tipe: "debit",
@@ -623,7 +629,7 @@ export function payTutorHonorTransaction(
   // Outflow from General Kas (The full gross amount leaves the kas because any deductions do not enter or remain in the institutional cash)
   const prevKasSaldo = nextDb.kas.length > 0 ? nextDb.kas[nextDb.kas.length - 1].saldoBerjalan : 0;
   const newKasTx: KasLembaga = {
-    id: `KAS-${String(nextDb.kas.length + 1).padStart(4, "0")}`,
+    id: generateUniqueId("KAS"),
     tanggal: data.tanggal,
     tipe: "keluar",
     keterangan: potonganAmt > 0
@@ -649,12 +655,11 @@ export function addGeneralExpenseTransaction(
   }
 ): Database {
   const nextDb = { ...db };
-  const expCount = nextDb.kas.filter(k => k.tipe === "keluar" && k.referensiId?.startsWith("EXP-")).length + 1;
-  const expId = `EXP-${String(expCount).padStart(4, "0")}`;
+  const expId = generateUniqueId("EXP");
   
   const prevKasSaldo = nextDb.kas.length > 0 ? nextDb.kas[nextDb.kas.length - 1].saldoBerjalan : 0;
   const newKasTx: KasLembaga = {
-    id: `KAS-${String(nextDb.kas.length + 1).padStart(4, "0")}`,
+    id: generateUniqueId("KAS"),
     tanggal: data.tanggal,
     tipe: "keluar",
     keterangan: `Pengeluaran Operasional [${expId}] - ${data.keterangan}`,
@@ -751,7 +756,7 @@ export function addOtherIncomeTransaction(
   }
 ): Database {
   const nextDb = { ...db };
-  const newId = `PML-${String(nextDb.otherIncomes.length + 1).padStart(4, "0")}`;
+  const newId = generateUniqueId("PML");
   const newIncome: PemasukanLain = {
     id: newId,
     tanggal: data.tanggal,
@@ -764,7 +769,7 @@ export function addOtherIncomeTransaction(
   // Update General Kas Lembaga
   const prevKasSaldo = nextDb.kas.length > 0 ? nextDb.kas[nextDb.kas.length - 1].saldoBerjalan : 0;
   const newKasTx: KasLembaga = {
-    id: `KAS-${String(nextDb.kas.length + 1).padStart(4, "0")}`,
+    id: generateUniqueId("KAS"),
     tanggal: data.tanggal,
     tipe: "masuk",
     keterangan: `Pemasukan Lain [${newId}] - ${data.jenis}${data.keterangan ? ' - ' + data.keterangan : ''}`,
@@ -800,7 +805,7 @@ export function submitAttendanceReport(
     return db;
   }
 
-  const newId = `LPK-${String(nextDb.attendanceReports.length + 1).padStart(4, "0")}`;
+  const newId = generateUniqueId("LPK");
   const newReport: LaporanKehadiran = {
     id: newId,
     tanggal: data.tanggal,
@@ -922,7 +927,7 @@ export function deleteSessionTransaction(
 
   // If this session was created from an attendance report, revert the report status back to pending
   if (session.catatan) {
-    const match = session.catatan.match(/\[(LPK-\d+)\]/);
+    const match = session.catatan.match(/\[(LPK-[^\]]+)\]/);
     if (match && match[1]) {
       const reportId = match[1];
       const reportIdx = nextDb.attendanceReports.findIndex(r => r.id === reportId);
