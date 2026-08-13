@@ -242,7 +242,9 @@ export async function pushToSupabase(db: Database, isForce = false): Promise<boo
         const payload = db.attendanceReports.map(a => ({
           id: a.id, tanggal: a.tanggal, tutor_id: a.tutorId, tutor_nama: a.tutorNama,
           siswa_id: a.siswaId, siswa_nama: a.siswaNama, program_id: a.programId,
-          program_nama: a.programNama, foto_jurnal: a.fotoJurnal, keterangan: a.keterangan || null
+          program_nama: a.programNama, foto_jurnal: a.fotoJurnal, keterangan: a.keterangan || null,
+          status: a.status || "pending", catatan_admin: a.catatanAdmin || null,
+          tanggal_proses: a.tanggalProses || null
         }));
         await supabase.from("laporan_kehadiran").upsert(payload, { onConflict: "id" });
       } catch (e) {}
@@ -355,196 +357,225 @@ export async function pullFromSupabase(): Promise<Database | null> {
       }
     }
 
-    // Intelligently merge SQL records from relational tables ONLY as a fallback if main_v1 was empty
-    if (isEmptyDatabase(dbResult)) {
-      try {
-        const { data: tutorRows } = await supabase.from("tutor").select("*");
-        if (tutorRows && Array.isArray(tutorRows) && tutorRows.length > 0) {
-          const existingTutors = [...dbResult.tutors];
-          tutorRows.forEach((r: any) => {
-            const tid = r.id || r.id_login;
-            if (!tid) return;
-            const idx = existingTutors.findIndex(t => t.id === tid || t.idLogin.toLowerCase() === (r.id_login || "").toLowerCase());
-            const existingTutor = idx >= 0 ? existingTutors[idx] : null;
-            const mappedTutor: Tutor = {
-              id: tid,
-              nama: r.nama || existingTutor?.nama || "Tutor",
-              idLogin: r.id_login || existingTutor?.idLogin || tid,
-              password: (r.password && r.password !== "123") ? r.password : (existingTutor?.password || r.password || "123"),
-              status: r.status === "nonaktif" ? "nonaktif" : (existingTutor?.status || "aktif"),
-              telepon: r.telepon || existingTutor?.telepon || "",
-              alamat: r.alamat || existingTutor?.alamat || "",
-              tanggalBergabung: r.tanggal_bergabung || existingTutor?.tanggalBergabung || new Date().toISOString().slice(0, 10)
-            };
-            if (idx >= 0) {
-              existingTutors[idx] = { ...existingTutors[idx], ...mappedTutor };
-            } else {
-              existingTutors.push(mappedTutor);
-            }
-          });
-          dbResult.tutors = existingTutors;
-        }
-      } catch (e) {
-        // Ignored if table 'tutor' doesn't exist
+    // Intelligently merge SQL records from relational tables so no records are lost
+    try {
+      const { data: tutorRows } = await supabase.from("tutor").select("*");
+      if (tutorRows && Array.isArray(tutorRows) && tutorRows.length > 0) {
+        const existingTutors = [...dbResult.tutors];
+        tutorRows.forEach((r: any) => {
+          const tid = r.id || r.id_login;
+          if (!tid) return;
+          const idx = existingTutors.findIndex(t => t.id === tid || t.idLogin.toLowerCase() === (r.id_login || "").toLowerCase());
+          const existingTutor = idx >= 0 ? existingTutors[idx] : null;
+          const mappedTutor: Tutor = {
+            id: tid,
+            nama: r.nama || existingTutor?.nama || "Tutor",
+            idLogin: r.id_login || existingTutor?.idLogin || tid,
+            password: (r.password && r.password !== "123") ? r.password : (existingTutor?.password || r.password || "123"),
+            status: r.status === "nonaktif" ? "nonaktif" : (existingTutor?.status || "aktif"),
+            telepon: r.telepon || existingTutor?.telepon || "",
+            alamat: r.alamat || existingTutor?.alamat || "",
+            tanggalBergabung: r.tanggal_bergabung || existingTutor?.tanggalBergabung || new Date().toISOString().slice(0, 10)
+          };
+          if (idx >= 0) {
+            existingTutors[idx] = { ...existingTutors[idx], ...mappedTutor };
+          } else {
+            existingTutors.push(mappedTutor);
+          }
+        });
+        dbResult.tutors = existingTutors;
       }
-
-      // Intelligently merge SQL records from 'siswa' relational table if available
-      try {
-        const { data: siswaRows } = await supabase.from("siswa").select("*");
-        if (siswaRows && Array.isArray(siswaRows) && siswaRows.length > 0) {
-          const existingStudents = [...dbResult.students];
-          siswaRows.forEach((r: any) => {
-            if (!r.id) return;
-            const idx = existingStudents.findIndex(s => s.id === r.id);
-            const mappedStudent: Siswa = {
-              id: r.id,
-              nama: r.nama || "Siswa",
-              programId: r.program_id || "",
-              status: r.status === "nonaktif" ? "nonaktif" : "aktif",
-              teleponOrangTua: r.telepon_orang_tua || "",
-              alamat: r.alamat || "",
-              tanggalDaftar: r.tanggal_daftar || (r.created_at ? r.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10))
-            };
-            if (idx >= 0) {
-              existingStudents[idx] = { ...existingStudents[idx], ...mappedStudent };
-            } else {
-              existingStudents.push(mappedStudent);
-            }
-          });
-
-          dbResult.students = existingStudents;
-        }
-      } catch (e) {}
-
-      // Pull other relational tables
-      try {
-        const { data: programRows } = await supabase.from("program").select("*");
-        if (programRows && programRows.length > 0) {
-          const mapped = programRows.map(r => ({
-            id: r.id, nama: r.nama, jenjang: r.jenjang, mapel: r.mapel,
-            durasi: Number(r.durasi), tarifSiswa: Number(r.tarif_siswa),
-            honorTutor: Number(r.honor_tutor), status: r.status
-          }));
-          const existing = [...dbResult.programs];
-          mapped.forEach(m => {
-            const idx = existing.findIndex(e => e.id === m.id);
-            if (idx >= 0) existing[idx] = m;
-            else existing.push(m);
-          });
-          dbResult.programs = existing;
-        }
-      } catch (e) {}
-
-      try {
-        const { data: kasRows } = await supabase.from("kas").select("*");
-        if (kasRows && kasRows.length > 0) {
-          const mapped = kasRows.map(r => ({
-            id: r.id, tanggal: r.tanggal, tipe: r.tipe, keterangan: r.keterangan,
-            jumlah: Number(r.jumlah), saldoBerjalan: Number(r.saldo_berjalan)
-          }));
-          const existing = [...dbResult.kas];
-          mapped.forEach(m => {
-            const idx = existing.findIndex(e => e.id === m.id);
-            if (idx >= 0) existing[idx] = m;
-            else existing.push(m);
-          });
-          dbResult.kas = existing;
-        }
-      } catch (e) {}
-
-      try {
-        const { data: pRows } = await supabase.from("pembayaran").select("*");
-        if (pRows && pRows.length > 0) {
-          const mapped = pRows.map(r => ({
-            id: r.id, tanggal: r.tanggal, siswaId: r.siswa_id, siswaNama: r.siswa_nama,
-            jumlah: Number(r.jumlah), metode: r.metode, tutorId: r.tutor_id,
-            tutorNama: r.tutor_nama, statusTitipan: r.status_titipan, tanggalSerah: r.tanggal_serah
-          }));
-          const existing = [...dbResult.payments];
-          mapped.forEach(m => {
-            const idx = existing.findIndex(e => e.id === m.id);
-            if (idx >= 0) existing[idx] = m;
-            else existing.push(m);
-          });
-          dbResult.payments = existing;
-        }
-      } catch (e) {}
-
-      try {
-        const { data: tlRows } = await supabase.from("transaksi_tutor").select("*");
-        if (tlRows && tlRows.length > 0) {
-          const mapped = tlRows.map(r => ({
-            id: r.id, tanggal: r.tanggal, tutorId: r.tutor_id, tipe: r.tipe,
-            keterangan: r.keterangan, jumlah: Number(r.jumlah),
-            saldoBerjalan: Number(r.saldo_berjalan), referensiId: r.referensi_id
-          }));
-          const existing = [...dbResult.tutorLedger];
-          mapped.forEach(m => {
-            const idx = existing.findIndex(e => e.id === m.id);
-            if (idx >= 0) existing[idx] = m;
-            else existing.push(m);
-          });
-          dbResult.tutorLedger = existing;
-        }
-      } catch (e) {}
-
-      try {
-        const { data: sgRows } = await supabase.from("slip_gaji").select("*");
-        if (sgRows && sgRows.length > 0) {
-          const mapped = sgRows.map(r => ({
-            id: r.id, tanggal: r.tanggal, tutorId: r.tutor_id, tutorNama: r.tutor_nama,
-            jumlah: Number(r.jumlah), periode: r.periode, catatan: r.catatan,
-            potongan: Number(r.potongan || 0), keteranganPotongan: r.keterangan_potongan,
-            totalHonor: Number(r.total_honor || 0)
-          }));
-          const existing = [...dbResult.slips];
-          mapped.forEach(m => {
-            const idx = existing.findIndex(e => e.id === m.id);
-            if (idx >= 0) existing[idx] = m;
-            else existing.push(m);
-          });
-          dbResult.slips = existing;
-        }
-      } catch (e) {}
-
-      try {
-        const { data: slRows } = await supabase.from("transaksi_siswa").select("*");
-
-        if (slRows && slRows.length > 0) {
-          const mapped = slRows.map(r => ({
-            id: r.id, tanggal: r.tanggal, siswaId: r.siswa_id, tipe: r.tipe,
-            keterangan: r.keterangan, jumlah: Number(r.jumlah),
-            saldoBerjalan: Number(r.saldo_berjalan), referensiId: r.referensi_id
-          }));
-          const existing = [...dbResult.studentLedger];
-          mapped.forEach(m => {
-            const idx = existing.findIndex(e => e.id === m.id);
-            if (idx >= 0) existing[idx] = m;
-            else existing.push(m);
-          });
-          dbResult.studentLedger = existing;
-        }
-      } catch (e) {}
-
-      try {
-        const { data: sessRows } = await supabase.from("sesi").select("*");
-        if (sessRows && sessRows.length > 0) {
-          const mapped = sessRows.map(r => ({
-            id: r.id, tanggal: r.tanggal, siswaId: r.siswa_id, siswaNama: r.siswa_nama,
-            tutorId: r.tutor_id, tutorNama: r.tutor_nama, programId: r.program_id,
-            programNama: r.program_nama, tarifSiswaSnapshot: Number(r.tarif_siswa_snapshot),
-            honorTutorSnapshot: Number(r.honor_tutor_snapshot), catatan: r.catatan
-          }));
-          const existing = [...dbResult.sessions];
-          mapped.forEach(m => {
-            const idx = existing.findIndex(e => e.id === m.id);
-            if (idx >= 0) existing[idx] = m;
-            else existing.push(m);
-          });
-          dbResult.sessions = existing;
-        }
-      } catch (e) {}
+    } catch (e) {
+      // Ignored if table 'tutor' doesn't exist
     }
+
+    // Intelligently merge SQL records from 'siswa' relational table if available
+    try {
+      const { data: siswaRows } = await supabase.from("siswa").select("*");
+      if (siswaRows && Array.isArray(siswaRows) && siswaRows.length > 0) {
+        const existingStudents = [...dbResult.students];
+        siswaRows.forEach((r: any) => {
+          if (!r.id) return;
+          const idx = existingStudents.findIndex(s => s.id === r.id);
+          const mappedStudent: Siswa = {
+            id: r.id,
+            nama: r.nama || "Siswa",
+            programId: r.program_id || "",
+            status: r.status === "nonaktif" ? "nonaktif" : "aktif",
+            teleponOrangTua: r.telepon_orang_tua || "",
+            alamat: r.alamat || "",
+            tanggalDaftar: r.tanggal_daftar || (r.created_at ? r.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10))
+          };
+          if (idx >= 0) {
+            existingStudents[idx] = { ...existingStudents[idx], ...mappedStudent };
+          } else {
+            existingStudents.push(mappedStudent);
+          }
+        });
+
+        dbResult.students = existingStudents;
+      }
+    } catch (e) {}
+
+    // Pull other relational tables
+    try {
+      const { data: programRows } = await supabase.from("program").select("*");
+      if (programRows && programRows.length > 0) {
+        const mapped = programRows.map(r => ({
+          id: r.id, nama: r.nama, jenjang: r.jenjang, mapel: r.mapel,
+          durasi: Number(r.durasi), tarifSiswa: Number(r.tarif_siswa),
+          honorTutor: Number(r.honor_tutor), status: r.status
+        }));
+        const existing = [...dbResult.programs];
+        mapped.forEach(m => {
+          const idx = existing.findIndex(e => e.id === m.id);
+          if (idx >= 0) existing[idx] = m;
+          else existing.push(m);
+        });
+        dbResult.programs = existing;
+      }
+    } catch (e) {}
+
+    try {
+      const { data: kasRows } = await supabase.from("kas").select("*");
+      if (kasRows && kasRows.length > 0) {
+        const mapped = kasRows.map(r => ({
+          id: r.id, tanggal: r.tanggal, tipe: r.tipe, keterangan: r.keterangan,
+          jumlah: Number(r.jumlah), saldoBerjalan: Number(r.saldo_berjalan)
+        }));
+        const existing = [...dbResult.kas];
+        mapped.forEach(m => {
+          const idx = existing.findIndex(e => e.id === m.id);
+          if (idx >= 0) existing[idx] = m;
+          else existing.push(m);
+        });
+        dbResult.kas = existing;
+      }
+    } catch (e) {}
+
+    try {
+      const { data: pRows } = await supabase.from("pembayaran").select("*");
+      if (pRows && pRows.length > 0) {
+        const mapped = pRows.map(r => ({
+          id: r.id, tanggal: r.tanggal, siswaId: r.siswa_id, siswaNama: r.siswa_nama,
+          jumlah: Number(r.jumlah), metode: r.metode, tutorId: r.tutor_id,
+          tutorNama: r.tutor_nama, statusTitipan: r.status_titipan, tanggalSerah: r.tanggal_serah
+        }));
+        const existing = [...dbResult.payments];
+        mapped.forEach(m => {
+          const idx = existing.findIndex(e => e.id === m.id);
+          if (idx >= 0) existing[idx] = m;
+          else existing.push(m);
+        });
+        dbResult.payments = existing;
+      }
+    } catch (e) {}
+
+    try {
+      const { data: attRows } = await supabase.from("laporan_kehadiran").select("*");
+      if (attRows && attRows.length > 0) {
+        const mapped = attRows.map(r => ({
+          id: r.id,
+          tanggal: r.tanggal,
+          tutorId: r.tutor_id,
+          tutorNama: r.tutor_nama,
+          siswaId: r.siswa_id,
+          siswaNama: r.siswa_nama,
+          programId: r.program_id,
+          programNama: r.program_nama,
+          fotoJurnal: r.foto_jurnal,
+          keterangan: r.keterangan || undefined,
+          status: (r.status as "pending" | "setuju" | "tolak") || "pending",
+          catatanAdmin: r.catatan_admin || undefined,
+          tanggalProses: r.tanggal_proses || undefined
+        }));
+        const existing = [...dbResult.attendanceReports];
+        mapped.forEach(m => {
+          const idx = existing.findIndex(e => e.id === m.id);
+          if (idx >= 0) {
+            existing[idx] = { ...existing[idx], ...m };
+          } else {
+            existing.push(m);
+          }
+        });
+        dbResult.attendanceReports = existing;
+      }
+    } catch (e) {}
+
+    try {
+      const { data: tlRows } = await supabase.from("transaksi_tutor").select("*");
+      if (tlRows && tlRows.length > 0) {
+        const mapped = tlRows.map(r => ({
+          id: r.id, tanggal: r.tanggal, tutorId: r.tutor_id, tipe: r.tipe,
+          keterangan: r.keterangan, jumlah: Number(r.jumlah),
+          saldoBerjalan: Number(r.saldo_berjalan), referensiId: r.referensi_id
+        }));
+        const existing = [...dbResult.tutorLedger];
+        mapped.forEach(m => {
+          const idx = existing.findIndex(e => e.id === m.id);
+          if (idx >= 0) existing[idx] = m;
+          else existing.push(m);
+        });
+        dbResult.tutorLedger = existing;
+      }
+    } catch (e) {}
+
+    try {
+      const { data: sgRows } = await supabase.from("slip_gaji").select("*");
+      if (sgRows && sgRows.length > 0) {
+        const mapped = sgRows.map(r => ({
+          id: r.id, tanggal: r.tanggal, tutorId: r.tutor_id, tutorNama: r.tutor_nama,
+          jumlah: Number(r.jumlah), periode: r.periode, catatan: r.catatan,
+          potongan: Number(r.potongan || 0), keteranganPotongan: r.keterangan_potongan,
+          totalHonor: Number(r.total_honor || 0)
+        }));
+        const existing = [...dbResult.slips];
+        mapped.forEach(m => {
+          const idx = existing.findIndex(e => e.id === m.id);
+          if (idx >= 0) existing[idx] = m;
+          else existing.push(m);
+        });
+        dbResult.slips = existing;
+      }
+    } catch (e) {}
+
+    try {
+      const { data: slRows } = await supabase.from("transaksi_siswa").select("*");
+
+      if (slRows && slRows.length > 0) {
+        const mapped = slRows.map(r => ({
+          id: r.id, tanggal: r.tanggal, siswaId: r.siswa_id, tipe: r.tipe,
+          keterangan: r.keterangan, jumlah: Number(r.jumlah),
+          saldoBerjalan: Number(r.saldo_berjalan), referensiId: r.referensi_id
+        }));
+        const existing = [...dbResult.studentLedger];
+        mapped.forEach(m => {
+          const idx = existing.findIndex(e => e.id === m.id);
+          if (idx >= 0) existing[idx] = m;
+          else existing.push(m);
+        });
+        dbResult.studentLedger = existing;
+      }
+    } catch (e) {}
+
+    try {
+      const { data: sessRows } = await supabase.from("sesi").select("*");
+      if (sessRows && sessRows.length > 0) {
+        const mapped = sessRows.map(r => ({
+          id: r.id, tanggal: r.tanggal, siswaId: r.siswa_id, siswaNama: r.siswa_nama,
+          tutorId: r.tutor_id, tutorNama: r.tutor_nama, programId: r.program_id,
+          programNama: r.program_nama, tarifSiswaSnapshot: Number(r.tarif_siswa_snapshot),
+          honorTutorSnapshot: Number(r.honor_tutor_snapshot), catatan: r.catatan
+        }));
+        const existing = [...dbResult.sessions];
+        mapped.forEach(m => {
+          const idx = existing.findIndex(e => e.id === m.id);
+          if (idx >= 0) existing[idx] = m;
+          else existing.push(m);
+        });
+        dbResult.sessions = existing;
+      }
+    } catch (e) {}
 
 
     updateSyncState({ 
@@ -644,7 +675,10 @@ CREATE TABLE IF NOT EXISTS laporan_kehadiran (
   program_id TEXT NOT NULL,
   program_nama TEXT NOT NULL,
   foto_jurnal TEXT NOT NULL,
-  keterangan TEXT
+  keterangan TEXT,
+  status TEXT DEFAULT 'pending',
+  catatan_admin TEXT,
+  tanggal_proses TEXT
 );
 
 ALTER TABLE laporan_kehadiran DISABLE ROW LEVEL SECURITY;

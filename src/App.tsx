@@ -33,7 +33,8 @@ import {
   safeSetItem,
   getTodayDateString,
   DB_STORAGE_KEY,
-  ensureDatabaseDefaults
+  ensureDatabaseDefaults,
+  mergeDatabases
 } from "./lib/db";
 import { UserSession, Tutor } from "./types";
 import { pullFromSupabase, pushToSupabase, subscribeToSyncState, SyncState, subscribeToDatabaseChanges, isEmptyDatabase } from "./lib/supabase";
@@ -213,34 +214,37 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = subscribeToDatabaseChanges((remoteDb) => {
       if (!remoteDb || isEmptyDatabase(remoteDb)) return;
-      setDb(remoteDb);
-      safeSetItem(DB_STORAGE_KEY, JSON.stringify(remoteDb));
+      setDb(prevDb => {
+        const merged = mergeDatabases(prevDb || getDatabase(), remoteDb);
+        safeSetItem(DB_STORAGE_KEY, JSON.stringify(merged));
+        return merged;
+      });
     });
     return unsubscribe;
   }, []);
 
   const [isInitialLoading, setIsInitialLoading] = useState(true);
 
-  // Load database on start with Supabase Cloud as primary source of truth
+  // Load database on start with Supabase Cloud as primary source of truth (always merging local & cloud)
   useEffect(() => {
     let isMounted = true;
 
     const initCloudData = async () => {
       try {
-        // Step 1: Attempt to fetch from Supabase Cloud FIRST
+        const localDb = getDatabase();
         const supabaseDb = await pullFromSupabase();
         
         if (!isMounted) return;
 
         if (supabaseDb && !isEmptyDatabase(supabaseDb)) {
-          // Supabase Cloud is primary source of truth!
-          setDb(supabaseDb);
-          safeSetItem(DB_STORAGE_KEY, JSON.stringify(supabaseDb));
+          // Merge local cache with Supabase Cloud so no unsynced local sessions/absensi are lost!
+          const merged = mergeDatabases(localDb, supabaseDb);
+          setDb(merged);
+          safeSetItem(DB_STORAGE_KEY, JSON.stringify(merged));
+          // Sync back the merged state to ensure Supabase has any extra local entries
+          pushToSupabase(merged);
         } else if (supabaseDb) {
-          // Supabase Cloud is connected but currently empty
-          const localDb = getDatabase();
           if (!isEmptyDatabase(localDb)) {
-            // Local cache has data, seed Supabase Cloud
             setDb(localDb);
             await pushToSupabase(localDb);
           } else {
@@ -248,8 +252,6 @@ export default function App() {
             safeSetItem(DB_STORAGE_KEY, JSON.stringify(supabaseDb));
           }
         } else {
-          // Fallback to local cache if Supabase pull returned null
-          const localDb = getDatabase();
           setDb(localDb);
         }
       } catch (err) {
@@ -271,16 +273,16 @@ export default function App() {
     const handleOnline = () => {
       console.log("Koneksi internet kembali aktif, menyinkronkan data...");
       const currentLocal = getDatabase();
-      if (currentLocal && !isEmptyDatabase(currentLocal)) {
-        pushToSupabase(currentLocal);
-      } else {
-        pullFromSupabase().then(remoteDb => {
-          if (remoteDb && !isEmptyDatabase(remoteDb)) {
-            setDb(remoteDb);
-            safeSetItem(DB_STORAGE_KEY, JSON.stringify(remoteDb));
-          }
-        });
-      }
+      pullFromSupabase().then(remoteDb => {
+        if (remoteDb) {
+          const merged = mergeDatabases(currentLocal, remoteDb);
+          setDb(merged);
+          safeSetItem(DB_STORAGE_KEY, JSON.stringify(merged));
+          pushToSupabase(merged);
+        } else if (!isEmptyDatabase(currentLocal)) {
+          pushToSupabase(currentLocal);
+        }
+      });
     };
 
     window.addEventListener("online", handleOnline);
@@ -307,24 +309,27 @@ export default function App() {
 
     const success = await pushToSupabase(db, true);
     if (success) {
-      alert("Berhasil menyinkronkan data ke Cloud!");
+      alert("Berhasil menyinkronkan data ke Supabase Cloud!");
     } else {
-      alert("Gagal menyinkronkan ke Cloud. Mohon periksa koneksi internet Anda.");
+      alert("Gagal menyinkronkan ke Supabase Cloud. Mohon periksa koneksi internet Anda.");
     }
   };
 
   if (isInitialLoading || !db) {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-center text-white font-sans">
-                <div className="w-50 h-50 rounded-2xl flex items-center justify-center mx-auto mb-3.5">
-                  <img src="public1.png" alt="Logo Rumah Belajar" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
-                </div>
+        <div className="w-16 h-16 bg-brand-600/20 border border-brand-500/40 rounded-2xl flex items-center justify-center mb-6 shadow-xl relative">
+          <GraduationCap size={32} className="text-brand-400" />
+          <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center border-2 border-slate-900 shadow-sm">
+            <Cloud size={11} className="text-white animate-pulse" />
+          </div>
+        </div>
         <div className="flex items-center gap-2 mb-2">
           <RefreshCw size={16} className="text-brand-400 animate-spin" />
-          <h3 className="text-base font-extrabold tracking-wide font-display text-white">sinkronisasi cloud...</h3>
+          <h3 className="text-base font-extrabold tracking-wide font-display text-white">Menghubungkan ke Supabase Cloud...</h3>
         </div>
         <p className="text-xs text-slate-400 font-medium max-w-xs leading-relaxed">
-          Mengambil data terbaru dari server.
+          Mengambil data terbaru dari server Supabase sebagai sumber data utama.
         </p>
       </div>
     );
@@ -530,7 +535,7 @@ export default function App() {
 
     setDb(nextDb);
     setIsAdminSessionOpen(false);
-    alert("Riwayat pertemuan baru berhasil disimpan.");
+    alert("Riwayat pertemuan baru berhasil disimpan oleh Admin.");
   };
 
   const renderNavigation = () => (
@@ -662,7 +667,7 @@ export default function App() {
               </div>
             </div>
           </div>
-          <nav className="flex-1 p-4 space-y-1 overflow-y-auto scrollbar-none">
+          <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-3 ml-2 mt-2">Menu Utama</p>
             {renderNavigation()}
           </nav>
