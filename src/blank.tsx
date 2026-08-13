@@ -214,16 +214,18 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = subscribeToDatabaseChanges((remoteDb) => {
       if (!remoteDb || isEmptyDatabase(remoteDb)) return;
-      const sanitized = ensureDatabaseDefaults(remoteDb);
-      setDb(sanitized);
-      safeSetItem(DB_STORAGE_KEY, JSON.stringify(sanitized));
+      setDb(prevDb => {
+        const merged = mergeDatabases(prevDb || getDatabase(), remoteDb);
+        safeSetItem(DB_STORAGE_KEY, JSON.stringify(merged));
+        return merged;
+      });
     });
     return unsubscribe;
   }, []);
 
   const [isInitialLoading, setIsInitialLoading] = useState(true);
 
-  // Load database on start with Supabase Cloud as primary source of truth
+  // Load database on start with Supabase Cloud as primary source of truth (always merging local & cloud)
   useEffect(() => {
     let isMounted = true;
 
@@ -235,17 +237,19 @@ export default function App() {
         if (!isMounted) return;
 
         if (supabaseDb && !isEmptyDatabase(supabaseDb)) {
-          const sanitized = ensureDatabaseDefaults(supabaseDb);
-          setDb(sanitized);
-          safeSetItem(DB_STORAGE_KEY, JSON.stringify(sanitized));
+          // Merge local cache with Supabase Cloud so no unsynced local sessions/absensi are lost!
+          const merged = mergeDatabases(localDb, supabaseDb);
+          setDb(merged);
+          safeSetItem(DB_STORAGE_KEY, JSON.stringify(merged));
+          // Sync back the merged state to ensure Supabase has any extra local entries
+          pushToSupabase(merged);
         } else if (supabaseDb) {
           if (!isEmptyDatabase(localDb)) {
             setDb(localDb);
             await pushToSupabase(localDb);
           } else {
-            const sanitized = ensureDatabaseDefaults(supabaseDb);
-            setDb(sanitized);
-            safeSetItem(DB_STORAGE_KEY, JSON.stringify(sanitized));
+            setDb(supabaseDb);
+            safeSetItem(DB_STORAGE_KEY, JSON.stringify(supabaseDb));
           }
         } else {
           setDb(localDb);
@@ -268,16 +272,15 @@ export default function App() {
     // Auto re-sync when network connectivity is restored
     const handleOnline = () => {
       console.log("Koneksi internet kembali aktif, menyinkronkan data...");
+      const currentLocal = getDatabase();
       pullFromSupabase().then(remoteDb => {
-        if (remoteDb && !isEmptyDatabase(remoteDb)) {
-          const sanitized = ensureDatabaseDefaults(remoteDb);
-          setDb(sanitized);
-          safeSetItem(DB_STORAGE_KEY, JSON.stringify(sanitized));
-        } else {
-          const currentLocal = getDatabase();
-          if (!isEmptyDatabase(currentLocal)) {
-            pushToSupabase(currentLocal);
-          }
+        if (remoteDb) {
+          const merged = mergeDatabases(currentLocal, remoteDb);
+          setDb(merged);
+          safeSetItem(DB_STORAGE_KEY, JSON.stringify(merged));
+          pushToSupabase(merged);
+        } else if (!isEmptyDatabase(currentLocal)) {
+          pushToSupabase(currentLocal);
         }
       });
     };
@@ -682,205 +685,205 @@ export default function App() {
 
       {/* ==================== MAIN SCREEN CONTENT ==================== */}
       <div className="flex-1 flex flex-col relative h-full overflow-hidden w-full max-w-full z-20">
-        <main className="flex-1 overflow-y-auto w-full max-w-full md:max-w-[98%] xl:max-w-[96%] mx-auto flex flex-col pb-24 md:pb-8 md:p-8 p-0 md:pt-8">
+        <main className="flex-1 overflow-y-auto scrollbar-none w-full max-w-full md:max-w-[98%] xl:max-w-[96%] mx-auto flex flex-col pb-24 md:pb-8 md:p-8 p-0 md:pt-8">
           
           {/* A. NOT LOGGED IN - SHOW LOGIN PAGE */}
           {!userSession ? (
-                        <div id="login-screen" className="flex-1 flex flex-col justify-center items-center p-6 animate-fade-in my-auto">
-                          <div className="w-full max-w-sm bg-slate-50 p-4 rounded-2xl">
-                          {/* Logo / Brand Header */}
-                          <div className="text-center mb-6">
-                            <div className="w-50 h-50 rounded-2xl flex items-center justify-center mx-auto mb-3.5">
-                              <img src="public9.png" alt="Logo Rumah Belajar" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
-                            </div>
-                            <h1 class="text-2xl font-extrabold tracking-tight font-display text-blue-800">
-                              Let's   
-                              <span class="text-blue-500">    Get   </span> 
-                              Started
-                              <span class="text-blue-500">!</span>
-                            </h1>
-                            <p className="text-xs text-blue-400 font-medium">Aplikasi Sistemasi & Automatisasi Rumah Belajar</p>
-                          </div>
-            
-                          {isRegisterOpen ? (
-                            /* Tutor Registration Card */
-                            <div>
-                              <div className="flex items-center gap-2 mb-5 border-b border-slate-100 pb-3">
-                                <button 
-                                  type="button" 
-                                  onClick={() => setIsRegisterOpen(false)}
-                                  className="text-blue-400 hover:text-blue-600 transition-all p-1 hover:bg-blue-100 rounded-full"
-                                >
-                                  <ArrowLeft size={16} />
-                                </button>
-                                <div className="text-left">
-                                  <h2 className="text-xs font-extrabold text-blue-800 tracking-tight uppercase">Registrasi Akun Tutor</h2>
-                                  <p className="text-[10px] text-blue-400">Isi formulir pendaftaran di bawah ini</p>
-                                </div>
-                              </div>
-            
-                              <form onSubmit={handleRegisterSubmit} className="space-y-3">
-                                <div className="text-left">
-                                  <label className="block text-[10px] text-blue-400/80 font-bold uppercase tracking-wider mb-1">Nama Lengkap Tutor *</label>
-                                  <input
-                                    type="text"
-                                    required
-                                    placeholder="Contoh: Sarah Wijaya, S.Pd."
-                                    value={regNama}
-                                    onChange={(e) => setRegNama(e.target.value)}
-                                    className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
-                                  />
-                                </div>
-            
-                                <div className="text-left">
-                                  <label className="block text-[10px] text-blue-400/80 font-bold uppercase tracking-wider mb-1">ID Login / Username *</label>
-                                  <input
-                                    type="text"
-                                    required
-                                    placeholder="Contoh: sarah (huruf kecil & tanpa spasi)"
-                                    value={regIdLogin}
-                                    onChange={(e) => setRegIdLogin(e.target.value.toLowerCase().replace(/\s+/g, ""))}
-                                    className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
-                                  />
-                                </div>
-            
-                                <div className="text-left">
-                                  <label className="block text-[10px] text-blue-400/80 font-bold uppercase tracking-wider mb-1">Password Keamanan *</label>
-                                  <div className="relative">
-                                    <input
-                                      type={showRegPassword ? "text" : "password"}
-                                      required
-                                      placeholder="   Masukkan password Anda"
-                                      value={regPassword}
-                                      onChange={(e) => setRegPassword(e.target.value)}
-                                      className="w-full text-xs font-semibold p-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() => setShowRegPassword(!showRegPassword)}
-                                      className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-400 hover:text-blue-600 focus:outline-none cursor-pointer transition-all"
-                                      title={showRegPassword ? "Sembunyikan password" : "Tampilkan password"}
-                                    >
-                                      {showRegPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                                    </button>
-                                  </div>
-                                </div>
-            
-                                <div className="text-left">
-                                  <label className="block text-[10px] text-blue-400/80 font-bold uppercase tracking-wider mb-1">Nomor WhatsApp/Telepon *</label>
-                                  <input
-                                    type="text"
-                                    required
-                                    placeholder="Contoh: 081234567890"
-                                    value={regTelepon}
-                                    onChange={(e) => setRegTelepon(e.target.value.replace(/[^0-9]/g, ""))}
-                                    className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
-                                  />
-                                </div>
-            
-                                <div className="text-left">
-                                  <label className="block text-[10px] text-blue-400/80 font-bold uppercase tracking-wider mb-1">Alamat Lengkap (Opsional)</label>
-                                  <textarea
-                                    rows={2}
-                                    placeholder="Masukkan alamat tinggal Anda saat ini"
-                                    value={regAlamat}
-                                    onChange={(e) => setRegAlamat(e.target.value)}
-                                    className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all resize-none"
-                                  />
-                                </div>
-            
-                                <div className="bg-amber-50 border border-amber-100 p-2.5 rounded-xl flex items-start gap-1.5 mt-1 text-left">
-                                  <Info size={14} className="text-amber-600 shrink-0 mt-0.5" />
-                                  <p className="text-[9.5px] text-amber-700 font-semibold leading-relaxed">
-                                    Akun baru akan berstatus <span className="font-bold underline">Nonaktif</span> terlebih dahulu untuk verifikasi keamanan oleh Administrator sebelum dapat digunakan untuk login.
-                                  </p>
-                                </div>
-            
-                                <button
-                                  type="submit"
-                                  className="w-full bg-brand-600 hover:bg-brand-700 text-white p-2.5 font-bold text-xs rounded-xl shadow-md cursor-pointer transition-all active:scale-95 mt-2 flex items-center justify-center gap-1.5"
-                                >
-                                  <UserPlus size={14} />
-                                  Kirim Pendaftaran
-                                </button>
-            
-                                <button
-                                  type="button"
-                                  onClick={() => setIsRegisterOpen(false)}
-                                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 text-xs font-bold rounded-xl cursor-pointer transition-all active:scale-95"
-                                >
-                                  Kembali ke Login
-                                </button>
-                              </form>
-                            </div>
-                          ) : (
-                            <>
-                              {/* Login Card */}
-                              <div>                 
-                                <form onSubmit={handleLoginSubmit} className="space-y-4">
-                                  <div className="text-left">
-                                    <input
-                                      type="text"
-                                      id="login-username-input"
-                                      required
-                                      placeholder="Masukkan ID login Anda"
-                                      value={loginId}
-                                      onChange={(e) => setLoginId(e.target.value)}
-                                      className="w-full text-xs font-semibold p-3 bg-slate-50 border-2 border-slate-200 rounded-3xl focus:border-brand-500 focus:outline-none transition-all"
-                                    />
-                                  </div>
-            
-                                  <div className="text-left">
-                                    <div className="relative">
-                                      <input
-                                        type={showLoginPassword ? "text" : "password"}
-                                        id="login-password-input"
-                                        required
-                                        placeholder="Masukkan password Anda"
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                      className="w-full text-xs font-semibold p-3 bg-slate-50 border-2 border-slate-200 rounded-3xl focus:border-brand-500 focus:outline-none transition-all"
-                                      />
-                                      <button
-                                        type="button"
-                                        onClick={() => setShowLoginPassword(!showLoginPassword)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer transition-all"
-                                        title={showLoginPassword ? "Sembunyikan password" : "Tampilkan password"}
-                                      >
-                                        {showLoginPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                                      </button>
-                                    </div>
-                                  </div>
-            
-                                  <button
-                                    type="submit"
-                                    id="login-submit-btn"
-                                    className="w-full bg-blue-500 hover:bg-blue-700 text-white p-3 font-bold text-xs rounded-3xl shadow-md cursor-pointer transition-all active:scale-95 mt-2"
-                                  >
-                                    Masuk Sistem
-                                  </button>
-                                </form>
-            
-                                {/* CTA Register / Sign Up Section */}
-                              <div className="mt-6 pt-6 border-t border-blue-200 text-center">
-                                <p className="text-xs text-slate-500">
-                                  Belum punya akun?  {'      '}
-                                  <button
-                                    type="button"
-                                    onClick={() => setIsRegisterOpen(true)}
-                                    className="font-extrabold text-blue-500 hover:text-blue-700 hover:underline underline-offset-4 transition-all duration-200 active:scale-95"
-                                  >
-                                    Registrasi sekarang!
-                                  </button>
-                                </p>
-                              </div>
-                              </div>
-            
-                            </>
-                          )}
-            
-                          </div> {/* Close max-w-sm wrapper */}
+            <div id="login-screen" className="flex-1 flex flex-col justify-center items-center p-6 animate-fade-in my-auto">
+              <div className="w-full max-w-sm bg-slate-50 p-4 rounded-2xl">
+              {/* Logo / Brand Header */}
+              <div className="text-center mb-6">
+                <div className="w-50 h-50 rounded-2xl flex items-center justify-center mx-auto mb-3.5">
+                  <img src="public9.png" alt="Logo Rumah Belajar" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                </div>
+                <h1 class="text-2xl font-extrabold tracking-tight font-display text-blue-800">
+                  Let's   
+                  <span class="text-blue-500">    Get   </span> 
+                  Started
+                  <span class="text-blue-500">!</span>
+                </h1>
+                <p className="text-xs text-blue-400 font-medium">Aplikasi Sistemasi & Automatisasi Rumah Belajar</p>
+              </div>
+
+              {isRegisterOpen ? (
+                /* Tutor Registration Card */
+                <div>
+                  <div className="flex items-center gap-2 mb-5 border-b border-slate-100 pb-3">
+                    <button 
+                      type="button" 
+                      onClick={() => setIsRegisterOpen(false)}
+                      className="text-blue-400 hover:text-blue-600 transition-all p-1 hover:bg-blue-100 rounded-full"
+                    >
+                      <ArrowLeft size={16} />
+                    </button>
+                    <div className="text-left">
+                      <h2 className="text-xs font-extrabold text-blue-800 tracking-tight uppercase">Registrasi Akun Tutor</h2>
+                      <p className="text-[10px] text-blue-400">Isi formulir pendaftaran di bawah ini</p>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleRegisterSubmit} className="space-y-3">
+                    <div className="text-left">
+                      <label className="block text-[10px] text-blue-400/80 font-bold uppercase tracking-wider mb-1">Nama Lengkap Tutor *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Contoh: Sarah Wijaya, S.Pd."
+                        value={regNama}
+                        onChange={(e) => setRegNama(e.target.value)}
+                        className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
+                      />
+                    </div>
+
+                    <div className="text-left">
+                      <label className="block text-[10px] text-blue-400/80 font-bold uppercase tracking-wider mb-1">ID Login / Username *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Contoh: sarah (huruf kecil & tanpa spasi)"
+                        value={regIdLogin}
+                        onChange={(e) => setRegIdLogin(e.target.value.toLowerCase().replace(/\s+/g, ""))}
+                        className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
+                      />
+                    </div>
+
+                    <div className="text-left">
+                      <label className="block text-[10px] text-blue-400/80 font-bold uppercase tracking-wider mb-1">Password Keamanan *</label>
+                      <div className="relative">
+                        <input
+                          type={showRegPassword ? "text" : "password"}
+                          required
+                          placeholder="   Masukkan password Anda"
+                          value={regPassword}
+                          onChange={(e) => setRegPassword(e.target.value)}
+                          className="w-full text-xs font-semibold p-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowRegPassword(!showRegPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-400 hover:text-blue-600 focus:outline-none cursor-pointer transition-all"
+                          title={showRegPassword ? "Sembunyikan password" : "Tampilkan password"}
+                        >
+                          {showRegPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="text-left">
+                      <label className="block text-[10px] text-blue-400/80 font-bold uppercase tracking-wider mb-1">Nomor WhatsApp/Telepon *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Contoh: 081234567890"
+                        value={regTelepon}
+                        onChange={(e) => setRegTelepon(e.target.value.replace(/[^0-9]/g, ""))}
+                        className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all"
+                      />
+                    </div>
+
+                    <div className="text-left">
+                      <label className="block text-[10px] text-blue-400/80 font-bold uppercase tracking-wider mb-1">Alamat Lengkap (Opsional)</label>
+                      <textarea
+                        rows={2}
+                        placeholder="Masukkan alamat tinggal Anda saat ini"
+                        value={regAlamat}
+                        onChange={(e) => setRegAlamat(e.target.value)}
+                        className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-500 focus:outline-none transition-all resize-none"
+                      />
+                    </div>
+
+                    <div className="bg-amber-50 border border-amber-100 p-2.5 rounded-xl flex items-start gap-1.5 mt-1 text-left">
+                      <Info size={14} className="text-amber-600 shrink-0 mt-0.5" />
+                      <p className="text-[9.5px] text-amber-700 font-semibold leading-relaxed">
+                        Akun baru akan berstatus <span className="font-bold underline">Nonaktif</span> terlebih dahulu untuk verifikasi keamanan oleh Administrator sebelum dapat digunakan untuk login.
+                      </p>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full bg-brand-600 hover:bg-brand-700 text-white p-2.5 font-bold text-xs rounded-xl shadow-md cursor-pointer transition-all active:scale-95 mt-2 flex items-center justify-center gap-1.5"
+                    >
+                      <UserPlus size={14} />
+                      Kirim Pendaftaran
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsRegisterOpen(false)}
+                      className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 text-xs font-bold rounded-xl cursor-pointer transition-all active:scale-95"
+                    >
+                      Kembali ke Login
+                    </button>
+                  </form>
+                </div>
+              ) : (
+                <>
+                  {/* Login Card */}
+                  <div>                 
+                    <form onSubmit={handleLoginSubmit} className="space-y-4">
+                      <div className="text-left">
+                        <input
+                          type="text"
+                          id="login-username-input"
+                          required
+                          placeholder="Masukkan ID login Anda"
+                          value={loginId}
+                          onChange={(e) => setLoginId(e.target.value)}
+                          className="w-full text-xs font-semibold p-3 bg-slate-50 border-2 border-slate-200 rounded-3xl focus:border-brand-500 focus:outline-none transition-all"
+                        />
+                      </div>
+
+                      <div className="text-left">
+                        <div className="relative">
+                          <input
+                            type={showLoginPassword ? "text" : "password"}
+                            id="login-password-input"
+                            required
+                            placeholder="Masukkan password Anda"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                          className="w-full text-xs font-semibold p-3 bg-slate-50 border-2 border-slate-200 rounded-3xl focus:border-brand-500 focus:outline-none transition-all"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowLoginPassword(!showLoginPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer transition-all"
+                            title={showLoginPassword ? "Sembunyikan password" : "Tampilkan password"}
+                          >
+                            {showLoginPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
                         </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        id="login-submit-btn"
+                        className="w-full bg-blue-500 hover:bg-blue-700 text-white p-3 font-bold text-xs rounded-3xl shadow-md cursor-pointer transition-all active:scale-95 mt-2"
+                      >
+                        Masuk Sistem
+                      </button>
+                    </form>
+
+                    {/* CTA Register / Sign Up Section */}
+                  <div className="mt-6 pt-6 border-t border-blue-200 text-center">
+                    <p className="text-xs text-slate-500">
+                      Belum punya akun?  {'      '}
+                      <button
+                        type="button"
+                        onClick={() => setIsRegisterOpen(true)}
+                        className="font-extrabold text-blue-500 hover:text-blue-700 hover:underline underline-offset-4 transition-all duration-200 active:scale-95"
+                      >
+                        Registrasi sekarang!
+                      </button>
+                    </p>
+                  </div>
+                  </div>
+
+                </>
+              )}
+
+              </div> {/* Close max-w-sm wrapper */}
+            </div>
           ) : (
             
             // B. ACTIVE USER TAB CONTENT SECTIONS
