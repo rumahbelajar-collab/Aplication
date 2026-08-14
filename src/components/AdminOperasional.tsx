@@ -27,10 +27,6 @@ import {
   getTutorHonorBalance,
   getTutorDepositBalance,
   addScheduleTransaction,
-  deleteScheduleTransaction,
-  deleteStudentTransaction,
-  deleteTutorTransaction,
-  deleteProgramTransaction,
   getTodayDateString,
   generateUniqueId
 } from "../lib/db";
@@ -186,17 +182,26 @@ export default function AdminOperasional({
       return;
     }
 
-    let nextDb = { ...db };
+    const currentDeleted = Array.isArray(db.deletedIds) ? db.deletedIds : [];
+    const updatedDeleted = currentDeleted.includes(id) ? currentDeleted : [...currentDeleted, id];
+
+    const nextDb: Database = {
+      ...db,
+      deletedIds: updatedDeleted,
+      lastUpdated: new Date().toISOString()
+    };
+
     if (activeSubTab === "siswa") {
-      nextDb = deleteStudentTransaction(db, id);
+      nextDb.students = (db.students || []).filter(s => s.id !== id);
     } else if (activeSubTab === "tutor") {
-      nextDb = deleteTutorTransaction(db, id);
+      nextDb.tutors = (db.tutors || []).filter(t => t.id !== id);
     } else if (activeSubTab === "program") {
-      nextDb = deleteProgramTransaction(db, id);
+      nextDb.programs = (db.programs || []).filter(p => p.id !== id);
     } else if (activeSubTab === "jadwal") {
-      nextDb = deleteScheduleTransaction(db, id);
+      nextDb.schedules = (db.schedules || []).filter(s => s.id !== id);
     }
 
+    saveDatabase(nextDb);
     onUpdateDb(nextDb);
   };
 
