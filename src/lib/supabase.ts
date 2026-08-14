@@ -73,8 +73,15 @@ export function subscribeToDatabaseChanges(onUpdate: (db: Database) => void): ()
       (payload) => {
         console.log("Real-time database update received from Supabase:", payload);
         if (payload.new && (payload.new as any).data) {
-          const remoteDb = (payload.new as any).data as Database;
-          onUpdate(remoteDb);
+          const remoteDb = ensureDatabaseDefaults((payload.new as any).data);
+          const localRaw = safeGetItem("rumah_belajar_db_v2");
+          let currentLocal: Database | null = null;
+          if (localRaw) {
+            try { currentLocal = JSON.parse(localRaw); } catch (e) {}
+          }
+          const merged = currentLocal ? mergeDatabases(currentLocal, remoteDb) : remoteDb;
+          safeSetItem("rumah_belajar_db_v2", JSON.stringify(merged));
+          onUpdate(merged);
         }
       }
     )
@@ -107,13 +114,139 @@ export function isEmptyDatabase(db: Database): boolean {
   );
 }
 
+// Background helper to push to relational tables without blocking
+async function pushRelationalTables(dbToPush: Database) {
+  try {
+    if (dbToPush.tutors && dbToPush.tutors.length > 0) {
+      const tutorPayload = dbToPush.tutors.map(t => ({
+        id: t.id,
+        nama: t.nama,
+        id_login: t.idLogin,
+        password: t.password || "123",
+        status: t.status || "aktif",
+        telepon: t.telepon || "",
+        alamat: t.alamat || "",
+        tanggal_bergabung: t.tanggalBergabung || new Date().toISOString().slice(0, 10)
+      }));
+      await supabase.from("tutor").upsert(tutorPayload, { onConflict: "id" });
+    }
+  } catch (e) {}
+
+  try {
+    if (dbToPush.students && dbToPush.students.length > 0) {
+      const studentPayload = dbToPush.students.map(s => ({
+        id: s.id,
+        nama: s.nama,
+        program_id: s.programId || "",
+        status: s.status || "aktif",
+        telepon_orang_tua: s.teleponOrangTua || "",
+        alamat: s.alamat || "",
+        tanggal_daftar: s.tanggalDaftar || new Date().toISOString().slice(0, 10)
+      }));
+      await supabase.from("siswa").upsert(studentPayload, { onConflict: "id" });
+    }
+  } catch (e) {}
+
+  try {
+    if (dbToPush.programs && dbToPush.programs.length > 0) {
+      const payload = dbToPush.programs.map(p => ({
+        id: p.id, nama: p.nama, jenjang: p.jenjang, mapel: p.mapel,
+        durasi: p.durasi, tarif_siswa: p.tarifSiswa, honor_tutor: p.honorTutor,
+        status: p.status || "aktif"
+      }));
+      await supabase.from("program").upsert(payload, { onConflict: "id" });
+    }
+  } catch (e) {}
+
+  try {
+    if (dbToPush.kas && dbToPush.kas.length > 0) {
+      const payload = dbToPush.kas.map(k => ({
+        id: k.id, tanggal: k.tanggal, tipe: k.tipe, keterangan: k.keterangan,
+        jumlah: k.jumlah, saldo_berjalan: k.saldoBerjalan
+      }));
+      await supabase.from("kas").upsert(payload, { onConflict: "id" });
+    }
+  } catch (e) {}
+
+  try {
+    if (dbToPush.payments && dbToPush.payments.length > 0) {
+      const payload = dbToPush.payments.map(p => ({
+        id: p.id, tanggal: p.tanggal, siswa_id: p.siswaId, siswa_nama: p.siswaNama,
+        jumlah: p.jumlah, metode: p.metode, tutor_id: p.tutorId || null,
+        tutor_nama: p.tutorNama || null, status_titipan: p.statusTitipan,
+        tanggal_serah: p.tanggalSerah || null
+      }));
+      await supabase.from("pembayaran").upsert(payload, { onConflict: "id" });
+    }
+  } catch (e) {}
+
+  try {
+    if (dbToPush.attendanceReports && dbToPush.attendanceReports.length > 0) {
+      const payload = dbToPush.attendanceReports.map(a => ({
+        id: a.id, tanggal: a.tanggal, tutor_id: a.tutorId, tutor_nama: a.tutorNama,
+        siswa_id: a.siswaId, siswa_nama: a.siswaNama, program_id: a.programId,
+        program_nama: a.programNama, foto_jurnal: a.fotoJurnal, keterangan: a.keterangan || null,
+        status: a.status || "pending", catatan_admin: a.catatanAdmin || null,
+        tanggal_proses: a.tanggalProses || null
+      }));
+      await supabase.from("laporan_kehadiran").upsert(payload, { onConflict: "id" });
+    }
+  } catch (e) {}
+
+  try {
+    if (dbToPush.tutorLedger && dbToPush.tutorLedger.length > 0) {
+      const payload = dbToPush.tutorLedger.map(l => ({
+        id: l.id, tanggal: l.tanggal, tutor_id: l.tutorId, tipe: l.tipe,
+        keterangan: l.keterangan, jumlah: l.jumlah, saldo_berjalan: l.saldoBerjalan,
+        referensi_id: l.referensiId || null
+      }));
+      await supabase.from("transaksi_tutor").upsert(payload, { onConflict: "id" });
+    }
+  } catch (e) {}
+
+  try {
+    if (dbToPush.slips && dbToPush.slips.length > 0) {
+      const payload = dbToPush.slips.map(s => ({
+        id: s.id, tanggal: s.tanggal, tutor_id: s.tutorId, tutor_nama: s.tutorNama,
+        jumlah: s.jumlah, periode: s.periode, catatan: s.catatan || null,
+        potongan: s.potongan || 0, keterangan_potongan: s.keteranganPotongan || null,
+        total_honor: s.totalHonor || 0
+      }));
+      await supabase.from("slip_gaji").upsert(payload, { onConflict: "id" });
+    }
+  } catch (e) {}
+
+  try {
+    if (dbToPush.studentLedger && dbToPush.studentLedger.length > 0) {
+      const payload = dbToPush.studentLedger.map(l => ({
+        id: l.id, tanggal: l.tanggal, siswa_id: l.siswaId, tipe: l.tipe,
+        keterangan: l.keterangan, jumlah: l.jumlah, saldo_berjalan: l.saldoBerjalan,
+        referensi_id: l.referensiId || null
+      }));
+      await supabase.from("transaksi_siswa").upsert(payload, { onConflict: "id" });
+    }
+  } catch (e) {}
+
+  try {
+    if (dbToPush.sessions && dbToPush.sessions.length > 0) {
+      const payload = dbToPush.sessions.map(s => ({
+        id: s.id, tanggal: s.tanggal, siswa_id: s.siswaId, siswa_nama: s.siswaNama,
+        tutor_id: s.tutorId, tutor_nama: s.tutorNama, program_id: s.programId,
+        program_nama: s.programNama, tarif_siswa_snapshot: s.tarifSiswaSnapshot,
+        honor_tutor_snapshot: s.honorTutorSnapshot, catatan: s.catatan || null
+      }));
+      await supabase.from("sesi").upsert(payload, { onConflict: "id" });
+    }
+  } catch (e) {}
+}
+
 /**
- * Pushes the database state to Supabase table `rumah_belajar_db`
+ * Pushes the database state to Supabase table `rumah_belajar_db` with 2-Way Smart Merge
  */
 export async function pushToSupabase(db: Database, isForce = false): Promise<boolean> {
   if (!db) return false;
 
-  // Prevent background sync spam if we already know the table is missing, unless forced by user click
+  // Prevent background sync spam if table is missing
   if (currentSyncState.status === "table_missing" && !isForce) {
     console.warn("Supabase push skipped automatically because the table 'rumah_belajar_db' does not exist yet.");
     return false;
@@ -121,30 +254,47 @@ export async function pushToSupabase(db: Database, isForce = false): Promise<boo
 
   updateSyncState({ status: "syncing", errorMessage: null });
 
-  const dbToPush = ensureDatabaseDefaults(db);
-
-  // Safety guard: Prevent pushing an empty database over an existing non-empty database on remote unless forced
-  if (isEmptyDatabase(dbToPush) && !isForce) {
-    console.warn("Safety Guard: Blocked attempt to overwrite non-empty Supabase database with an empty database.");
-    updateSyncState({ status: "idle", errorMessage: null });
-    return false;
-  }
-
   const timeoutPromise = new Promise<boolean>((resolve) => {
     setTimeout(() => {
-      console.warn("Supabase pushToSupabase timed out after 5000ms");
-      updateSyncState({ status: "error", errorMessage: "Koneksi ke Supabase terhenti (Timeout). Database Supabase perlu di-restart." });
+      console.warn("Supabase pushToSupabase timed out after 8000ms");
+      updateSyncState({ status: "error", errorMessage: "Koneksi ke Supabase lambat. Data tetap tersimpan aman di perangkat ini." });
       resolve(false);
-    }, 5000);
+    }, 8000);
   });
 
   const pushTask = (async (): Promise<boolean> => {
     try {
+      let finalDbToPush = ensureDatabaseDefaults(db);
+
+      // 1. SMART 2-WAY MERGE: Fetch latest remote to never overwrite data from another device
+      try {
+        const { data: remoteRow } = await supabase
+          .from("rumah_belajar_db")
+          .select("data")
+          .eq("id", "main_v1")
+          .single();
+
+        if (remoteRow && remoteRow.data) {
+          const remoteDb = ensureDatabaseDefaults(remoteRow.data);
+          finalDbToPush = mergeDatabases(finalDbToPush, remoteDb);
+        }
+      } catch (e) {
+        console.warn("Could not fetch remote before push, proceeding with local state merge:", e);
+      }
+
+      // Safety guard: Block empty overwrite
+      if (isEmptyDatabase(finalDbToPush) && !isForce) {
+        console.warn("Safety Guard: Blocked attempt to overwrite with empty database.");
+        updateSyncState({ status: "idle", errorMessage: null });
+        return false;
+      }
+
+      // 2. Save Merged State to Supabase
       const { error } = await supabase
         .from("rumah_belajar_db")
         .upsert({ 
           id: "main_v1", 
-          data: dbToPush, 
+          data: finalDbToPush, 
           updated_at: new Date().toISOString() 
         }, {
           onConflict: "id"
@@ -166,149 +316,21 @@ export async function pushToSupabase(db: Database, isForce = false): Promise<boo
         return false;
       }
 
-      // Best-effort push to relational tables if they exist in Supabase
-      if (dbToPush.tutors) {
-        try {
-          if (dbToPush.tutors.length > 0) {
-            const tutorPayload = dbToPush.tutors.map(t => ({
-              id: t.id,
-              nama: t.nama,
-              id_login: t.idLogin,
-              password: t.password || "123",
-              status: t.status || "aktif",
-              telepon: t.telepon || "",
-              alamat: t.alamat || "",
-              tanggal_bergabung: t.tanggalBergabung || new Date().toISOString().slice(0, 10)
-            }));
-            await supabase.from("tutor").upsert(tutorPayload, { onConflict: "id" });
-          }
-        } catch (e) {}
-      }
+      // 3. Backup snapshot in Supabase as secondary safety net
+      supabase
+        .from("rumah_belajar_db")
+        .upsert({
+          id: "backup_latest",
+          data: finalDbToPush,
+          updated_at: new Date().toISOString()
+        })
+        .then(() => {}, () => {});
 
-      if (dbToPush.students) {
-        try {
-          if (dbToPush.students.length > 0) {
-            const studentPayload = dbToPush.students.map(s => ({
-              id: s.id,
-              nama: s.nama,
-              program_id: s.programId || "",
-              status: s.status || "aktif",
-              telepon_orang_tua: s.teleponOrangTua || "",
-              alamat: s.alamat || "",
-              tanggal_daftar: s.tanggalDaftar || new Date().toISOString().slice(0, 10)
-            }));
-            await supabase.from("siswa").upsert(studentPayload, { onConflict: "id" });
-          }
-        } catch (e) {}
-      }
+      // 4. Update local storage with the merged finalDbToPush
+      safeSetItem("rumah_belajar_db_v2", JSON.stringify(finalDbToPush));
 
-      if (dbToPush.programs) {
-        try {
-          if (dbToPush.programs.length > 0) {
-            const payload = dbToPush.programs.map(p => ({
-              id: p.id, nama: p.nama, jenjang: p.jenjang, mapel: p.mapel,
-              durasi: p.durasi, tarif_siswa: p.tarifSiswa, honor_tutor: p.honorTutor,
-              status: p.status || "aktif"
-            }));
-            await supabase.from("program").upsert(payload, { onConflict: "id" });
-          }
-        } catch (e) {}
-      }
-
-      if (dbToPush.kas) {
-        try {
-          if (dbToPush.kas.length > 0) {
-            const payload = dbToPush.kas.map(k => ({
-              id: k.id, tanggal: k.tanggal, tipe: k.tipe, keterangan: k.keterangan,
-              jumlah: k.jumlah, saldo_berjalan: k.saldoBerjalan
-            }));
-            await supabase.from("kas").upsert(payload, { onConflict: "id" });
-          }
-        } catch (e) {}
-      }
-
-      if (dbToPush.payments) {
-        try {
-          if (dbToPush.payments.length > 0) {
-            const payload = dbToPush.payments.map(p => ({
-              id: p.id, tanggal: p.tanggal, siswa_id: p.siswaId, siswa_nama: p.siswaNama,
-              jumlah: p.jumlah, metode: p.metode, tutor_id: p.tutorId || null,
-              tutor_nama: p.tutorNama || null, status_titipan: p.statusTitipan,
-              tanggal_serah: p.tanggalSerah || null
-            }));
-            await supabase.from("pembayaran").upsert(payload, { onConflict: "id" });
-          }
-        } catch (e) {}
-      }
-
-      if (dbToPush.attendanceReports) {
-        try {
-          if (dbToPush.attendanceReports.length > 0) {
-            const payload = dbToPush.attendanceReports.map(a => ({
-              id: a.id, tanggal: a.tanggal, tutor_id: a.tutorId, tutor_nama: a.tutorNama,
-              siswa_id: a.siswaId, siswa_nama: a.siswaNama, program_id: a.programId,
-              program_nama: a.programNama, foto_jurnal: a.fotoJurnal, keterangan: a.keterangan || null,
-              status: a.status || "pending", catatan_admin: a.catatanAdmin || null,
-              tanggal_proses: a.tanggalProses || null
-            }));
-            await supabase.from("laporan_kehadiran").upsert(payload, { onConflict: "id" });
-          }
-        } catch (e) {}
-      }
-
-      if (dbToPush.tutorLedger) {
-        try {
-          if (dbToPush.tutorLedger.length > 0) {
-            const payload = dbToPush.tutorLedger.map(l => ({
-              id: l.id, tanggal: l.tanggal, tutor_id: l.tutorId, tipe: l.tipe,
-              keterangan: l.keterangan, jumlah: l.jumlah, saldo_berjalan: l.saldoBerjalan,
-              referensi_id: l.referensiId || null
-            }));
-            await supabase.from("transaksi_tutor").upsert(payload, { onConflict: "id" });
-          }
-        } catch (e) {}
-      }
-
-      if (dbToPush.slips) {
-        try {
-          if (dbToPush.slips.length > 0) {
-            const payload = dbToPush.slips.map(s => ({
-              id: s.id, tanggal: s.tanggal, tutor_id: s.tutorId, tutor_nama: s.tutorNama,
-              jumlah: s.jumlah, periode: s.periode, catatan: s.catatan || null,
-              potongan: s.potongan || 0, keterangan_potongan: s.keteranganPotongan || null,
-              total_honor: s.totalHonor || 0
-            }));
-            await supabase.from("slip_gaji").upsert(payload, { onConflict: "id" });
-          }
-        } catch (e) {}
-      }
-
-      if (dbToPush.studentLedger) {
-        try {
-          if (dbToPush.studentLedger.length > 0) {
-            const payload = dbToPush.studentLedger.map(l => ({
-              id: l.id, tanggal: l.tanggal, siswa_id: l.siswaId, tipe: l.tipe,
-              keterangan: l.keterangan, jumlah: l.jumlah, saldo_berjalan: l.saldoBerjalan,
-              referensi_id: l.referensiId || null
-            }));
-            await supabase.from("transaksi_siswa").upsert(payload, { onConflict: "id" });
-          }
-        } catch (e) {}
-      }
-
-      if (dbToPush.sessions) {
-        try {
-          if (dbToPush.sessions.length > 0) {
-            const payload = dbToPush.sessions.map(s => ({
-              id: s.id, tanggal: s.tanggal, siswa_id: s.siswaId, siswa_nama: s.siswaNama,
-              tutor_id: s.tutorId, tutor_nama: s.tutorNama, program_id: s.programId,
-              program_nama: s.programNama, tarif_siswa_snapshot: s.tarifSiswaSnapshot,
-              honor_tutor_snapshot: s.honorTutorSnapshot, catatan: s.catatan || null
-            }));
-            await supabase.from("sesi").upsert(payload, { onConflict: "id" });
-          }
-        } catch (e) {}
-      }
+      // 5. Background push to relational tables
+      pushRelationalTables(finalDbToPush);
 
       const syncTime = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " WIB";
       safeSetItem("supabase_last_synced", syncTime);
@@ -329,6 +351,187 @@ export async function pushToSupabase(db: Database, isForce = false): Promise<boo
 }
 
 /**
+ * Fallback to recover data from relational tables if JSON is damaged or empty
+ */
+async function pullFromRelationalTables(): Promise<Database | null> {
+  try {
+    const [
+      tutorRes, siswaRes, progRes, kasRes, payRes, 
+      sesiRes, txSiswaRes, txTutorRes, slipRes, absenRes
+    ] = await Promise.allSettled([
+      supabase.from("tutor").select("*"),
+      supabase.from("siswa").select("*"),
+      supabase.from("program").select("*"),
+      supabase.from("kas").select("*"),
+      supabase.from("pembayaran").select("*"),
+      supabase.from("sesi").select("*"),
+      supabase.from("transaksi_siswa").select("*"),
+      supabase.from("transaksi_tutor").select("*"),
+      supabase.from("slip_gaji").select("*"),
+      supabase.from("laporan_kehadiran").select("*")
+    ]);
+
+    const tutors = (tutorRes.status === "fulfilled" && tutorRes.value.data)
+      ? tutorRes.value.data.map((t: any) => ({
+          id: t.id,
+          nama: t.nama,
+          idLogin: t.id_login || t.idLogin,
+          password: t.password || "123",
+          status: t.status || "aktif",
+          telepon: t.telepon || "",
+          alamat: t.alamat || "",
+          tanggalBergabung: t.tanggal_bergabung || ""
+        }))
+      : [];
+
+    const students = (siswaRes.status === "fulfilled" && siswaRes.value.data)
+      ? siswaRes.value.data.map((s: any) => ({
+          id: s.id,
+          nama: s.nama,
+          programId: s.program_id || s.programId || "",
+          status: s.status || "aktif",
+          teleponOrangTua: s.telepon_orang_tua || s.teleponOrangTua || "",
+          alamat: s.alamat || "",
+          tanggalDaftar: s.tanggal_daftar || ""
+        }))
+      : [];
+
+    const programs = (progRes.status === "fulfilled" && progRes.value.data)
+      ? progRes.value.data.map((p: any) => ({
+          id: p.id,
+          nama: p.nama,
+          jenjang: p.jenjang || "SD",
+          mapel: p.mapel || "",
+          durasi: Number(p.durasi || 90),
+          tarifSiswa: Number(p.tarif_siswa || p.tarifSiswa || 0),
+          honorTutor: Number(p.honor_tutor || p.honorTutor || 0),
+          status: p.status || "aktif"
+        }))
+      : [];
+
+    const kas = (kasRes.status === "fulfilled" && kasRes.value.data)
+      ? kasRes.value.data.map((k: any) => ({
+          id: k.id,
+          tanggal: k.tanggal,
+          tipe: k.tipe,
+          keterangan: k.keterangan,
+          jumlah: Number(k.jumlah),
+          saldoBerjalan: Number(k.saldo_berjalan || k.saldoBerjalan || 0)
+        }))
+      : [];
+
+    const payments = (payRes.status === "fulfilled" && payRes.value.data)
+      ? payRes.value.data.map((p: any) => ({
+          id: p.id,
+          tanggal: p.tanggal,
+          siswaId: p.siswa_id || p.siswaId,
+          siswaNama: p.siswa_nama || p.siswaNama,
+          jumlah: Number(p.jumlah),
+          metode: p.metode,
+          tutorId: p.tutor_id || p.tutorId || undefined,
+          tutorNama: p.tutor_nama || p.tutorNama || undefined,
+          statusTitipan: p.status_titipan || p.statusTitipan,
+          tanggalSerah: p.tanggal_serah || p.tanggalSerah || undefined
+        }))
+      : [];
+
+    const sessions = (sesiRes.status === "fulfilled" && sesiRes.value.data)
+      ? sesiRes.value.data.map((s: any) => ({
+          id: s.id,
+          tanggal: s.tanggal,
+          siswaId: s.siswa_id || s.siswaId,
+          siswaNama: s.siswa_nama || s.siswaNama,
+          tutorId: s.tutor_id || s.tutorId,
+          tutorNama: s.tutor_nama || s.tutorNama,
+          programId: s.program_id || s.programId,
+          programNama: s.program_nama || s.programNama,
+          tarifSiswaSnapshot: Number(s.tarif_siswa_snapshot || s.tarifSiswaSnapshot || 0),
+          honorTutorSnapshot: Number(s.honor_tutor_snapshot || s.honorTutorSnapshot || 0),
+          catatan: s.catatan || undefined
+        }))
+      : [];
+
+    const studentLedger = (txSiswaRes.status === "fulfilled" && txSiswaRes.value.data)
+      ? txSiswaRes.value.data.map((l: any) => ({
+          id: l.id,
+          tanggal: l.tanggal,
+          siswaId: l.siswa_id || l.siswaId,
+          tipe: l.tipe,
+          keterangan: l.keterangan,
+          jumlah: Number(l.jumlah),
+          saldoBerjalan: Number(l.saldo_berjalan || l.saldoBerjalan || 0),
+          referensiId: l.referensi_id || l.referensiId || undefined
+        }))
+      : [];
+
+    const tutorLedger = (txTutorRes.status === "fulfilled" && txTutorRes.value.data)
+      ? txTutorRes.value.data.map((l: any) => ({
+          id: l.id,
+          tanggal: l.tanggal,
+          tutorId: l.tutor_id || l.tutorId,
+          tipe: l.tipe,
+          keterangan: l.keterangan,
+          jumlah: Number(l.jumlah),
+          saldoBerjalan: Number(l.saldo_berjalan || l.saldoBerjalan || 0),
+          referensiId: l.referensi_id || l.referensiId || undefined
+        }))
+      : [];
+
+    const slips = (slipRes.status === "fulfilled" && slipRes.value.data)
+      ? slipRes.value.data.map((s: any) => ({
+          id: s.id,
+          tanggal: s.tanggal,
+          tutorId: s.tutor_id || s.tutorId,
+          tutorNama: s.tutor_nama || s.tutorNama,
+          jumlah: Number(s.jumlah),
+          periode: s.periode,
+          catatan: s.catatan || undefined,
+          potongan: Number(s.potongan || 0),
+          keteranganPotongan: s.keterangan_potongan || s.keteranganPotongan || undefined,
+          totalHonor: Number(s.total_honor || s.totalHonor || 0)
+        }))
+      : [];
+
+    const attendanceReports = (absenRes.status === "fulfilled" && absenRes.value.data)
+      ? absenRes.value.data.map((a: any) => ({
+          id: a.id,
+          tanggal: a.tanggal,
+          tutorId: a.tutor_id || a.tutorId,
+          tutorNama: a.tutor_nama || a.tutorNama,
+          siswaId: a.siswa_id || a.siswaId,
+          siswaNama: a.siswa_nama || a.siswaNama,
+          programId: a.program_id || a.programId,
+          programNama: a.program_nama || a.programNama,
+          fotoJurnal: a.foto_jurnal || a.fotoJurnal,
+          keterangan: a.keterangan || undefined,
+          status: a.status || "pending",
+          catatanAdmin: a.catatan_admin || a.catatanAdmin || undefined,
+          tanggalProses: a.tanggal_proses || a.tanggalProses || undefined
+        }))
+      : [];
+
+    const hasAnyRelationalData = tutors.length > 0 || students.length > 0 || programs.length > 0 || sessions.length > 0 || kas.length > 0;
+    if (!hasAnyRelationalData) return null;
+
+    return ensureDatabaseDefaults({
+      programs,
+      students,
+      tutors,
+      sessions,
+      studentLedger,
+      payments,
+      tutorLedger,
+      slips,
+      kas,
+      attendanceReports
+    });
+  } catch (e) {
+    console.warn("Relational tables fallback check failed:", e);
+    return null;
+  }
+}
+
+/**
  * Pulls the database state from Supabase table `rumah_belajar_db` and merges relational tables (tutor, siswa)
  */
 export async function pullFromSupabase(): Promise<Database | null> {
@@ -336,16 +539,24 @@ export async function pullFromSupabase(): Promise<Database | null> {
 
   const timeoutPromise = new Promise<null>((resolve) => {
     setTimeout(() => {
-      console.warn("Supabase pullFromSupabase timed out after 5000ms");
-      updateSyncState({ status: "error", errorMessage: "Koneksi ke Supabase terhenti (Timeout). Silakan jalankan SQL di Supabase." });
+      console.warn("Supabase pullFromSupabase timed out after 8000ms");
+      updateSyncState({ status: "error", errorMessage: "Koneksi ke Supabase lambat. Menggunakan data lokal perangkat." });
       resolve(null);
-    }, 5000);
+    }, 8000);
   });
 
   const fetchPromise = (async (): Promise<Database | null> => {
     try {
-      let dbResult: Database | null = null;
+      // 1. Get current local state
+      let localDb: Database | null = null;
+      const localRaw = safeGetItem("rumah_belajar_db_v2");
+      if (localRaw) {
+        try {
+          localDb = ensureDatabaseDefaults(JSON.parse(localRaw));
+        } catch (e) {}
+      }
 
+      // 2. Fetch main JSON state from Supabase
       const { data, error } = await supabase
         .from("rumah_belajar_db")
         .select("data")
@@ -354,45 +565,68 @@ export async function pullFromSupabase(): Promise<Database | null> {
 
       if (error) {
         console.warn("Supabase main_v1 pull warning:", error);
-        if (error.code === "PGRST116") {
-          updateSyncState({ status: "idle", errorMessage: "Data di Supabase masih kosong." });
-        } else {
-          const isMissingTable = error.message?.includes("relation") || 
-            error.message?.includes("does not exist") || 
-            error.message?.includes("schema cache") || 
-            error.message?.includes("Could not find the table");
-          if (isMissingTable) {
-            updateSyncState({ status: "table_missing", errorMessage: "Tabel 'rumah_belajar_db' belum terbuat di Supabase." });
-            return null;
-          }
-          updateSyncState({ status: "error", errorMessage: error.message || "Gagal terhubung ke Supabase." });
-          return null;
+        const isMissingTable = error.message?.includes("relation") || 
+          error.message?.includes("does not exist") || 
+          error.message?.includes("schema cache") || 
+          error.message?.includes("Could not find the table");
+
+        if (isMissingTable) {
+          updateSyncState({ status: "table_missing", errorMessage: "Tabel 'rumah_belajar_db' belum terbuat di Supabase." });
+          return localDb;
         }
+
+        // Try recovering from relational tables
+        const recoveredRelational = await pullFromRelationalTables();
+        if (recoveredRelational && !isEmptyDatabase(recoveredRelational)) {
+          const merged = localDb ? mergeDatabases(localDb, recoveredRelational) : recoveredRelational;
+          safeSetItem("rumah_belajar_db_v2", JSON.stringify(merged));
+          supabase.from("rumah_belajar_db").upsert({ id: "main_v1", data: merged, updated_at: new Date().toISOString() }).then(() => {});
+          updateSyncState({ 
+            status: "success", 
+            lastSynced: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " WIB" 
+          });
+          return merged;
+        }
+
+        updateSyncState({ status: "idle", errorMessage: null });
+        return localDb;
       }
 
       if (data && data.data) {
-        const dbResultDoc = ensureDatabaseDefaults(data.data);
+        const remoteDb = ensureDatabaseDefaults(data.data);
+        // SMART 2-WAY MERGE: Local changes are merged with remote so no offline work is lost
+        const finalDb = localDb ? mergeDatabases(localDb, remoteDb) : remoteDb;
+        
+        safeSetItem("rumah_belajar_db_v2", JSON.stringify(finalDb));
+        
+        // If local had unsynced records, push merged back to remote
+        if (localDb && !isEmptyDatabase(localDb) && JSON.stringify(finalDb) !== JSON.stringify(remoteDb)) {
+          supabase
+            .from("rumah_belajar_db")
+            .upsert({ id: "main_v1", data: finalDb, updated_at: new Date().toISOString() })
+            .then(() => {}, () => {});
+        }
+
         updateSyncState({ 
           status: "success", 
           lastSynced: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " WIB" 
         });
-        return dbResultDoc;
+        return finalDb;
       }
 
-      // Fallback ONLY if main_v1 is empty or missing completely
-      dbResult = ensureDatabaseDefaults(null);
-      const localRaw = safeGetItem("rumah_belajar_db_v2");
-      if (localRaw) {
-        try {
-          dbResult = ensureDatabaseDefaults(JSON.parse(localRaw));
-        } catch (e) {}
+      // If remote has no data, check relational tables
+      const recovered = await pullFromRelationalTables();
+      if (recovered && !isEmptyDatabase(recovered)) {
+        const merged = localDb ? mergeDatabases(localDb, recovered) : recovered;
+        safeSetItem("rumah_belajar_db_v2", JSON.stringify(merged));
+        updateSyncState({ 
+          status: "success", 
+          lastSynced: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " WIB" 
+        });
+        return merged;
       }
 
-      updateSyncState({ 
-        status: "success", 
-        lastSynced: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " WIB" 
-      });
-      return dbResult;
+      return localDb;
     } catch (err: any) {
       console.warn("Supabase network warning during pull:", err);
       updateSyncState({ status: "error", errorMessage: err.message || "Koneksi ke Supabase terputus." });

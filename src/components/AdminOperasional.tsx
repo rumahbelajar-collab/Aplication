@@ -28,6 +28,9 @@ import {
   getTutorDepositBalance,
   addScheduleTransaction,
   deleteScheduleTransaction,
+  deleteStudentTransaction,
+  deleteTutorTransaction,
+  deleteProgramTransaction,
   getTodayDateString,
   generateUniqueId
 } from "../lib/db";
@@ -183,18 +186,17 @@ export default function AdminOperasional({
       return;
     }
 
-    const nextDb = { ...db };
+    let nextDb = { ...db };
     if (activeSubTab === "siswa") {
-      nextDb.students = nextDb.students.filter(s => s.id !== id);
+      nextDb = deleteStudentTransaction(db, id);
     } else if (activeSubTab === "tutor") {
-      nextDb.tutors = nextDb.tutors.filter(t => t.id !== id);
+      nextDb = deleteTutorTransaction(db, id);
     } else if (activeSubTab === "program") {
-      nextDb.programs = nextDb.programs.filter(p => p.id !== id);
+      nextDb = deleteProgramTransaction(db, id);
     } else if (activeSubTab === "jadwal") {
-      nextDb.schedules = nextDb.schedules.filter(s => s.id !== id);
+      nextDb = deleteScheduleTransaction(db, id);
     }
 
-    saveDatabase(nextDb);
     onUpdateDb(nextDb);
   };
 
