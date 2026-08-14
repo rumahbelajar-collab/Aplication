@@ -238,6 +238,25 @@ async function pushRelationalTables(dbToPush: Database) {
       await supabase.from("sesi").upsert(payload, { onConflict: "id" });
     }
   } catch (e) {}
+
+  // Ensure deleted items are permanently removed from relational tables
+  if (dbToPush.deletedIds && dbToPush.deletedIds.length > 0) {
+    const ids = dbToPush.deletedIds;
+    try {
+      await Promise.allSettled([
+        supabase.from("tutor").delete().in("id", ids),
+        supabase.from("siswa").delete().in("id", ids),
+        supabase.from("program").delete().in("id", ids),
+        supabase.from("kas").delete().in("id", ids),
+        supabase.from("pembayaran").delete().in("id", ids),
+        supabase.from("laporan_kehadiran").delete().in("id", ids),
+        supabase.from("transaksi_tutor").delete().in("id", ids),
+        supabase.from("slip_gaji").delete().in("id", ids),
+        supabase.from("transaksi_siswa").delete().in("id", ids),
+        supabase.from("sesi").delete().in("id", ids)
+      ]);
+    } catch (e) {}
+  }
 }
 
 /**
