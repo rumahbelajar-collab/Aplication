@@ -31,6 +31,8 @@ export interface Database {
   raports?: RaportSiswa[];
   broadcastMessage?: string;
   adminPassword?: string;
+  deletedIds?: string[];
+  lastUpdated?: string;
 }
 
 // FORMATTERS
@@ -116,13 +118,34 @@ export function ensureDatabaseDefaults(parsed: any): Database {
     raports: Array.isArray(parsed.raports) ? parsed.raports : [],
     schedules: Array.isArray(parsed.schedules) ? parsed.schedules : [],
     broadcastMessage: parsed.broadcastMessage ?? "📢 PENGUMUMAN TUTOR: Mohon lakukan serah terima uang titipan pembayaran siswa kepada Staf Administrasi dan catat riwayat pertemuan secara tertib. Terima kasih!",
-    adminPassword: parsed.adminPassword ?? "admin123"
+    adminPassword: parsed.adminPassword ?? "admin123",
+    deletedIds: Array.isArray(parsed.deletedIds) ? parsed.deletedIds : [],
+    lastUpdated: parsed.lastUpdated || new Date().toISOString()
   };
+}
+
+export function recordDeletedId(db: Database, id: string): Database {
+  if (!id) return db;
+  const currentDeleted = Array.isArray(db.deletedIds) ? db.deletedIds : [];
+  if (!currentDeleted.includes(id)) {
+    return {
+      ...db,
+      deletedIds: [...currentDeleted, id],
+      lastUpdated: new Date().toISOString()
+    };
+  }
+  return db;
 }
 
 export function mergeDatabases(localDb: Database, remoteDb: Database): Database {
   const local = ensureDatabaseDefaults(localDb);
   const remote = ensureDatabaseDefaults(remoteDb);
+
+  // 1. Merge all deleted IDs (Tombstones) to respect intentional deletions across all devices
+  const deletedSet = new Set<string>([
+    ...(local.deletedIds || []),
+    ...(remote.deletedIds || [])
+  ]);
 
   const mergeArrayById = <T extends { id: string }>(
     localArr: T[],
@@ -131,12 +154,12 @@ export function mergeDatabases(localDb: Database, remoteDb: Database): Database 
   ): T[] => {
     const map = new Map<string, T>();
     (remoteArr || []).forEach(item => {
-      if (item && item.id) {
+      if (item && item.id && !deletedSet.has(item.id)) {
         map.set(item.id, item);
       }
     });
     (localArr || []).forEach(item => {
-      if (item && item.id) {
+      if (item && item.id && !deletedSet.has(item.id)) {
         if (map.has(item.id)) {
           const existingRemote = map.get(item.id)!;
           if (resolveConflict) {
@@ -164,10 +187,10 @@ export function mergeDatabases(localDb: Database, remoteDb: Database): Database 
 
   const mergedTutorsMap = new Map<string, Tutor>();
   (remote.tutors || []).forEach(t => {
-    if (t && t.id) mergedTutorsMap.set(t.id, t);
+    if (t && t.id && !deletedSet.has(t.id)) mergedTutorsMap.set(t.id, t);
   });
   (local.tutors || []).forEach(t => {
-    if (!t || !t.id) return;
+    if (!t || !t.id || deletedSet.has(t.id)) return;
     const existingKey = Array.from(mergedTutorsMap.keys()).find(
       k => k === t.id || (mergedTutorsMap.get(k)?.idLogin || "").toLowerCase() === (t.idLogin || "").toLowerCase()
     );
@@ -205,7 +228,9 @@ export function mergeDatabases(localDb: Database, remoteDb: Database): Database 
     schedules: mergeArrayById(local.schedules || [], remote.schedules || []),
     raports: mergeArrayById(local.raports || [], remote.raports || []),
     broadcastMessage: remote.broadcastMessage || local.broadcastMessage,
-    adminPassword: resolvedAdminPassword
+    adminPassword: resolvedAdminPassword,
+    deletedIds: Array.from(deletedSet),
+    lastUpdated: new Date().toISOString()
   };
 
   if (mergedDb.kas && mergedDb.kas.length > 0) {
@@ -916,7 +941,7 @@ export function deleteSessionTransaction(
   db: Database,
   sessionId: string
 ): Database {
-  const nextDb = { ...db };
+  let nextDb = recordDeletedId(db, sessionId);
   
   // Find the session
   const session = nextDb.sessions.find(s => s.id === sessionId);
@@ -988,7 +1013,7 @@ export function deleteAttendanceReport(
   db: Database,
   reportId: string
 ): Database {
-  let nextDb = { ...db };
+  let nextDb = recordDeletedId(db, reportId);
   const report = nextDb.attendanceReports.find(r => r.id === reportId);
   if (!report) return db;
 
@@ -1008,6 +1033,130 @@ export function deleteAttendanceReport(
 
   // Delete from array
   nextDb.attendanceReports = nextDb.attendanceReports.filter(r => r.id !== reportId);
+  saveDatabase(nextDb);
+  return nextDb;
+}
+
+// 8e. Delete Student Transaction
+export function deleteStudentTransaction(db: Database, studentId: string): Database {
+  let nextDb = recordDeletedId(db, studentId);
+  nextDb.students = nextDb.students.filter(s => s.id !== studentId);
+  saveDatabase(nextDb);
+  return nextDb;
+}
+
+// 8f. Delete Tutor Transaction
+export function deleteTutorTransaction(db: Database, tutorId: string): Database {
+  let nextDb = recordDeletedId(db, tutorId);
+  nextDb.tutors = nextDb.tutors.filter(t => t.id !== tutorId);
+  saveDatabase(nextDb);
+  return nextDb;
+}
+
+// 8g. Delete Program Transaction
+export function deleteProgramTransaction(db: Database, programId: string): Database {
+  let nextDb = recordDeletedId(db, programId);
+  nextDb.programs = nextDb.programs.filter(p => p.id !== programId);
+  saveDatabase(nextDb);
+  return nextDb;
+}
+
+// 8h. Delete Other Income Transaction
+export function deleteOtherIncomeTransaction(db: Database, incomeId: string): Database {
+  let nextDb = recordDeletedId(db, incomeId);
+  nextDb.otherIncomes = (nextDb.otherIncomes || []).filter(o => o.id !== incomeId);
+  // Also delete corresponding Kas entry if linked
+  nextDb.kas = (nextDb.kas || []).filter(k => k.referensiId !== incomeId && k.id !== incomeId);
+  // Recalculate Kas running balance
+  if (nextDb.kas && nextDb.kas.length > 0) {
+    let running = 0;
+    nextDb.kas = nextDb.kas.map(k => {
+      if (k.tipe === "masuk") running += k.jumlah;
+      else running -= k.jumlah;
+      return { ...k, saldoBerjalan: running };
+    });
+  }
+  saveDatabase(nextDb);
+  return nextDb;
+}
+
+// 8i. Delete Slip Gaji Transaction
+export function deleteSlipGajiTransaction(db: Database, slipId: string): Database {
+  let nextDb = recordDeletedId(db, slipId);
+  const slip = nextDb.slips.find(s => s.id === slipId);
+  if (!slip) return db;
+
+  nextDb.slips = nextDb.slips.filter(s => s.id !== slipId);
+  // Remove from tutor ledger
+  nextDb.tutorLedger = nextDb.tutorLedger.filter(tx => tx.referensiId !== slipId);
+  // Recalculate tutor ledger
+  let tutorRunning = 0;
+  nextDb.tutorLedger = nextDb.tutorLedger.map(tx => {
+    if (tx.tutorId === slip.tutorId) {
+      if (tx.tipe === "kredit") tutorRunning += tx.jumlah;
+      else tutorRunning -= tx.jumlah;
+      return { ...tx, saldoBerjalan: tutorRunning };
+    }
+    return tx;
+  });
+  // Remove corresponding kas entry
+  nextDb.kas = nextDb.kas.filter(k => k.referensiId !== slipId);
+  let kasRunning = 0;
+  nextDb.kas = nextDb.kas.map(k => {
+    if (k.tipe === "masuk") kasRunning += k.jumlah;
+    else kasRunning -= k.jumlah;
+    return { ...k, saldoBerjalan: kasRunning };
+  });
+
+  saveDatabase(nextDb);
+  return nextDb;
+}
+
+// 8j. Delete Payment Transaction
+export function deletePaymentTransaction(db: Database, paymentId: string): Database {
+  let nextDb = recordDeletedId(db, paymentId);
+  const pay = nextDb.payments.find(p => p.id === paymentId);
+  if (!pay) return db;
+
+  nextDb.payments = nextDb.payments.filter(p => p.id !== paymentId);
+
+  // If was direct transfer/cash or handed over, remove from studentLedger and kas
+  nextDb.studentLedger = nextDb.studentLedger.filter(tx => tx.referensiId !== paymentId);
+  // Recalculate student ledger
+  let studentRunning = 0;
+  nextDb.studentLedger = nextDb.studentLedger.map(tx => {
+    if (tx.siswaId === pay.siswaId) {
+      if (tx.tipe === "debit") studentRunning += tx.jumlah;
+      else studentRunning -= tx.jumlah;
+      return { ...tx, saldoBerjalan: studentRunning };
+    }
+    return tx;
+  });
+
+  // Remove corresponding kas entry
+  nextDb.kas = nextDb.kas.filter(k => k.referensiId !== paymentId);
+  let kasRunning = 0;
+  nextDb.kas = nextDb.kas.map(k => {
+    if (k.tipe === "masuk") kasRunning += k.jumlah;
+    else kasRunning -= k.jumlah;
+    return { ...k, saldoBerjalan: kasRunning };
+  });
+
+  saveDatabase(nextDb);
+  return nextDb;
+}
+
+// 8k. Delete General Expense Transaction (Kas Keluar)
+export function deleteGeneralExpenseTransaction(db: Database, kasIdOrRefId: string): Database {
+  let nextDb = recordDeletedId(db, kasIdOrRefId);
+  nextDb.kas = nextDb.kas.filter(k => k.id !== kasIdOrRefId && k.referensiId !== kasIdOrRefId);
+  let kasRunning = 0;
+  nextDb.kas = nextDb.kas.map(k => {
+    if (k.tipe === "masuk") kasRunning += k.jumlah;
+    else kasRunning -= k.jumlah;
+    return { ...k, saldoBerjalan: kasRunning };
+  });
+
   saveDatabase(nextDb);
   return nextDb;
 }
@@ -1074,7 +1223,7 @@ export function addScheduleTransaction(
 }
 
 export function deleteScheduleTransaction(db: Database, scheduleId: string): Database {
-  const nextDb = { ...db };
+  let nextDb = recordDeletedId(db, scheduleId);
   nextDb.schedules = nextDb.schedules.filter(s => s.id !== scheduleId);
   saveDatabase(nextDb);
   return nextDb;

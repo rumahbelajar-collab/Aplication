@@ -32,6 +32,7 @@ import {
 } from "../lib/db";
 import { Siswa, Tutor, ProgramBelajar, JadwalTutor } from "../types";
 import { downloadDaftarSiswaPDF, downloadDaftarTutorPDF } from "../lib/pdfGenerator";
+import { deleteRecordFromSupabase } from "../lib/supabase";
 
 interface AdminOperasionalProps {
   db: Database;
@@ -193,10 +194,13 @@ export default function AdminOperasional({
 
     if (activeSubTab === "siswa") {
       nextDb.students = (db.students || []).filter(s => s.id !== id);
+      deleteRecordFromSupabase("siswa", id);
     } else if (activeSubTab === "tutor") {
       nextDb.tutors = (db.tutors || []).filter(t => t.id !== id);
+      deleteRecordFromSupabase("tutor", id);
     } else if (activeSubTab === "program") {
       nextDb.programs = (db.programs || []).filter(p => p.id !== id);
+      deleteRecordFromSupabase("program", id);
     } else if (activeSubTab === "jadwal") {
       nextDb.schedules = (db.schedules || []).filter(s => s.id !== id);
     }

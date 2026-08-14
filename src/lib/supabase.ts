@@ -71,17 +71,11 @@ export function subscribeToDatabaseChanges(onUpdate: (db: Database) => void): ()
         filter: "id=eq.main_v1"
       },
       (payload) => {
-        console.log("Real-time database update received from Supabase:", payload);
         if (payload.new && (payload.new as any).data) {
           const remoteDb = ensureDatabaseDefaults((payload.new as any).data);
-          const localRaw = safeGetItem("rumah_belajar_db_v2");
-          let currentLocal: Database | null = null;
-          if (localRaw) {
-            try { currentLocal = JSON.parse(localRaw); } catch (e) {}
-          }
-          const merged = currentLocal ? mergeDatabases(currentLocal, remoteDb) : remoteDb;
-          safeSetItem("rumah_belajar_db_v2", JSON.stringify(merged));
-          onUpdate(merged);
+          // Directly apply authoritative server state without merging stale local items
+          safeSetItem("rumah_belajar_db_v2", JSON.stringify(remoteDb));
+          onUpdate(remoteDb);
         }
       }
     )
@@ -114,8 +108,72 @@ export function isEmptyDatabase(db: Database): boolean {
   );
 }
 
+/**
+ * Delete a specific record directly from Supabase SQL table
+ */
+export async function deleteRecordFromSupabase(table: string, id: string | string[]): Promise<boolean> {
+  try {
+    const ids = Array.isArray(id) ? id : [id];
+    if (ids.length === 0) return true;
+    
+    const tableMap: Record<string, string> = {
+      "siswa": "siswa",
+      "student": "siswa",
+      "students": "siswa",
+      "tutor": "tutor",
+      "tutors": "tutor",
+      "program": "program",
+      "programs": "program",
+      "kas": "kas",
+      "pembayaran": "pembayaran",
+      "payment": "pembayaran",
+      "payments": "pembayaran",
+      "sesi": "sesi",
+      "session": "sesi",
+      "sessions": "sesi",
+      "laporan_kehadiran": "laporan_kehadiran",
+      "attendance": "laporan_kehadiran",
+      "attendanceReports": "laporan_kehadiran",
+      "transaksi_siswa": "transaksi_siswa",
+      "transaksi_tutor": "transaksi_tutor",
+      "slip_gaji": "slip_gaji",
+      "slips": "slip_gaji"
+    };
+    
+    const targetTable = tableMap[table] || table;
+    const { error } = await supabase.from(targetTable).delete().in("id", ids);
+    if (error) {
+      console.warn(`Supabase delete from ${targetTable} note:`, error.message);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.warn(`Error deleting from ${table}:`, e);
+    return false;
+  }
+}
+
 // Background helper to push to relational tables without blocking
 async function pushRelationalTables(dbToPush: Database) {
+  // 1. Delete all deletedIds explicitly from all relational tables
+  if (dbToPush.deletedIds && dbToPush.deletedIds.length > 0) {
+    const ids = dbToPush.deletedIds;
+    try {
+      await Promise.allSettled([
+        supabase.from("tutor").delete().in("id", ids),
+        supabase.from("siswa").delete().in("id", ids),
+        supabase.from("program").delete().in("id", ids),
+        supabase.from("kas").delete().in("id", ids),
+        supabase.from("pembayaran").delete().in("id", ids),
+        supabase.from("laporan_kehadiran").delete().in("id", ids),
+        supabase.from("transaksi_tutor").delete().in("id", ids),
+        supabase.from("slip_gaji").delete().in("id", ids),
+        supabase.from("transaksi_siswa").delete().in("id", ids),
+        supabase.from("sesi").delete().in("id", ids)
+      ]);
+    } catch (e) {}
+  }
+
   try {
     if (dbToPush.tutors && dbToPush.tutors.length > 0) {
       const tutorPayload = dbToPush.tutors.map(t => ({
@@ -238,29 +296,10 @@ async function pushRelationalTables(dbToPush: Database) {
       await supabase.from("sesi").upsert(payload, { onConflict: "id" });
     }
   } catch (e) {}
-
-  // Ensure deleted items are permanently removed from relational tables
-  if (dbToPush.deletedIds && dbToPush.deletedIds.length > 0) {
-    const ids = dbToPush.deletedIds;
-    try {
-      await Promise.allSettled([
-        supabase.from("tutor").delete().in("id", ids),
-        supabase.from("siswa").delete().in("id", ids),
-        supabase.from("program").delete().in("id", ids),
-        supabase.from("kas").delete().in("id", ids),
-        supabase.from("pembayaran").delete().in("id", ids),
-        supabase.from("laporan_kehadiran").delete().in("id", ids),
-        supabase.from("transaksi_tutor").delete().in("id", ids),
-        supabase.from("slip_gaji").delete().in("id", ids),
-        supabase.from("transaksi_siswa").delete().in("id", ids),
-        supabase.from("sesi").delete().in("id", ids)
-      ]);
-    } catch (e) {}
-  }
 }
 
 /**
- * Pushes the database state to Supabase table `rumah_belajar_db` with 2-Way Smart Merge
+ * Pushes the database state to Supabase table `rumah_belajar_db`
  */
 export async function pushToSupabase(db: Database, isForce = false): Promise<boolean> {
   if (!db) return false;
@@ -283,32 +322,9 @@ export async function pushToSupabase(db: Database, isForce = false): Promise<boo
 
   const pushTask = (async (): Promise<boolean> => {
     try {
-      let finalDbToPush = ensureDatabaseDefaults(db);
+      const finalDbToPush = ensureDatabaseDefaults(db);
 
-      // 1. SMART 2-WAY MERGE: Fetch latest remote to never overwrite data from another device
-      try {
-        const { data: remoteRow } = await supabase
-          .from("rumah_belajar_db")
-          .select("data")
-          .eq("id", "main_v1")
-          .single();
-
-        if (remoteRow && remoteRow.data) {
-          const remoteDb = ensureDatabaseDefaults(remoteRow.data);
-          finalDbToPush = mergeDatabases(finalDbToPush, remoteDb);
-        }
-      } catch (e) {
-        console.warn("Could not fetch remote before push, proceeding with local state merge:", e);
-      }
-
-      // Safety guard: Block empty overwrite
-      if (isEmptyDatabase(finalDbToPush) && !isForce) {
-        console.warn("Safety Guard: Blocked attempt to overwrite with empty database.");
-        updateSyncState({ status: "idle", errorMessage: null });
-        return false;
-      }
-
-      // 2. Save Merged State to Supabase
+      // Save Authoritative State directly to Supabase - DO NOT resurrect deleted items
       const { error } = await supabase
         .from("rumah_belajar_db")
         .upsert({ 
@@ -335,7 +351,7 @@ export async function pushToSupabase(db: Database, isForce = false): Promise<boo
         return false;
       }
 
-      // 3. Backup snapshot in Supabase as secondary safety net
+      // Backup snapshot in Supabase as secondary safety net
       supabase
         .from("rumah_belajar_db")
         .upsert({
@@ -345,11 +361,11 @@ export async function pushToSupabase(db: Database, isForce = false): Promise<boo
         })
         .then(() => {}, () => {});
 
-      // 4. Update local storage with the merged finalDbToPush
+      // Update local storage with the authoritative finalDbToPush
       safeSetItem("rumah_belajar_db_v2", JSON.stringify(finalDbToPush));
 
-      // 5. Background push to relational tables
-      pushRelationalTables(finalDbToPush);
+      // Synchronize relational tables (upsert active items + delete removed items)
+      await pushRelationalTables(finalDbToPush);
 
       const syncTime = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " WIB";
       safeSetItem("supabase_last_synced", syncTime);
@@ -613,24 +629,14 @@ export async function pullFromSupabase(): Promise<Database | null> {
 
       if (data && data.data) {
         const remoteDb = ensureDatabaseDefaults(data.data);
-        // SMART 2-WAY MERGE: Local changes are merged with remote so no offline work is lost
-        const finalDb = localDb ? mergeDatabases(localDb, remoteDb) : remoteDb;
+        // Supabase Cloud is authoritative for pulled data - do not resurrect deleted items with old local cache
+        safeSetItem("rumah_belajar_db_v2", JSON.stringify(remoteDb));
         
-        safeSetItem("rumah_belajar_db_v2", JSON.stringify(finalDb));
-        
-        // If local had unsynced records, push merged back to remote
-        if (localDb && !isEmptyDatabase(localDb) && JSON.stringify(finalDb) !== JSON.stringify(remoteDb)) {
-          supabase
-            .from("rumah_belajar_db")
-            .upsert({ id: "main_v1", data: finalDb, updated_at: new Date().toISOString() })
-            .then(() => {}, () => {});
-        }
-
         updateSyncState({ 
           status: "success", 
           lastSynced: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " WIB" 
         });
-        return finalDb;
+        return remoteDb;
       }
 
       // If remote has no data, check relational tables
