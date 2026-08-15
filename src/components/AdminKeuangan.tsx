@@ -7,6 +7,7 @@ import {
   BookOpen, 
   Calendar, 
   Plus, 
+  Minus,
   Check, 
   ArrowUpRight, 
   ArrowDownLeft, 
@@ -15,8 +16,7 @@ import {
   Download,
   Info,
   DollarSign,
-  RotateCcw,
-  Minus
+  RotateCcw
 } from "lucide-react";
 import { 
   Database, 
@@ -89,6 +89,14 @@ export default function AdminKeuangan({
     const lastDay = new Date(year, month + 1, 0).getDate();
     return `${year}-${String(month + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
   });
+
+  // Sorted students and tutors by ID (numeric/natural sorting)
+  const sortedStudents = [...(db.students || [])].sort((a, b) => 
+    (a.id || "").localeCompare(b.id || "", undefined, { numeric: true, sensitivity: "base" })
+  );
+  const sortedTutors = [...(db.tutors || [])].sort((a, b) => 
+    (a.id || "").localeCompare(b.id || "", undefined, { numeric: true, sensitivity: "base" })
+  );
 
   // Selected Student/Tutor details ledger sub-view
   const [selectedStudent, setSelectedStudent] = useState<Siswa | null>(null);
@@ -321,8 +329,9 @@ export default function AdminKeuangan({
       onUpdateDb(nextDb);
     }
   };
+
   return (
-    <div id="admin-keuangan-container" className="px-2 py-4 pb-20">
+    <div id="admin-keuangan-container" className="px-4 py-4 pb-20">
       
       {/* CENTRAL DATE RANGE FILTER */}
       <DateRangeFilter
@@ -337,7 +346,7 @@ export default function AdminKeuangan({
       />
 
       {/* FINANCE SUBTABS */}
-      <div className="grid grid-cols-4 bg-white p-1 rounded-lg border border-slate-100 shadow-2xs mb-5 shrink-0">
+      <div className="grid grid-cols-4 bg-white p-1 rounded-xl border border-slate-100 shadow-2xs mb-5 shrink-0">
         <button
           id="tab-keu-rekening"
           onClick={() => { setActiveSubTab("siswa"); setSelectedStudent(null); }}
@@ -369,7 +378,7 @@ export default function AdminKeuangan({
           id="tab-keu-kas"
           onClick={() => { setActiveSubTab("kas"); }}
           className={`py-2 text-[9.5px] font-bold rounded-lg cursor-pointer transition-all ${
-            activeSubTab === "kas" ? "bg-brand-50 text-brand-600 font-extrabold" : "text-slate-500 hover:bg-slate-50"
+            activeSubTab === "kas" || activeSubTab === "lain" ? "bg-brand-50 text-brand-600 font-extrabold" : "text-slate-500 hover:bg-slate-50"
           }`}
         >
           Buku Kas
@@ -384,8 +393,8 @@ export default function AdminKeuangan({
           {!selectedStudent ? (
             // Student account summaries list
             <div className="space-y-2.5">
-              <div className="flex justify-between items-center mb-5">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider px-2">Rekening Tagihan Siswa (SPP)</span>
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Rekening Tagiahan Siswa (SPP)</span>
                 <button
                   id="keu-pay-siswa-btn"
                   onClick={() => setIsPayModalOpen(true)}
@@ -396,7 +405,7 @@ export default function AdminKeuangan({
                 </button>
               </div>
 
-              {db.students.map((student) => {
+              {sortedStudents.map((student) => {
                 const balance = getStudentBalance(db, student.id);
                 const prog = db.programs.find(p => p.id === student.programId);
                 
@@ -408,7 +417,7 @@ export default function AdminKeuangan({
                       setSelectedStudent(student);
                       setPaySiswaId(student.id);
                     }}
-                    className="bg-white p-5 rounded-lg border border-slate-100 shadow-3xs flex items-center justify-between hover:border-brand-300 transition-all cursor-pointer active:scale-98"
+                    className="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-3xs flex items-center justify-between hover:border-brand-300 transition-all cursor-pointer active:scale-98"
                   >
                     <div className="min-w-0 flex-1 pr-3">
                       <p className="text-[9px] font-bold text-slate-400 font-mono uppercase tracking-wider">{student.id}</p>
@@ -417,9 +426,9 @@ export default function AdminKeuangan({
 
                     <div className="text-right shrink-0 flex items-center gap-2">
                       <div>
-                        <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">Sisa Tagihan</p>
+                        <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">Saldo Tabungan</p>
                         <p className={`text-xs font-black font-mono mt-0.5 ${balance > 0 ? "text-rose-600" : "text-emerald-600"}`}>
-                          {balance > 0 ? `-${formatRupiah(balance)}` : balance < 0 ? `+${formatRupiah(Math.abs(balance))}` : "Rp 0"}
+                          {balance > 0 ? `+${formatRupiah(balance)}` : balance < 0 ? `-${formatRupiah(Math.abs(balance))}` : "Rp 0"}
                         </p>
                       </div>
                       <ChevronRight size={16} className="text-slate-300 mt-2" />
@@ -460,20 +469,20 @@ export default function AdminKeuangan({
 
                   return (
                     <>
-                      <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-lg text-xs">
+                      <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-xl text-xs">
                         <div>
                           <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Tagihan</span>
-                          <span className="font-bold text-rose-500 font-mono text-xs">{formatRupiah(debit)}</span>
+                          <span className="font-bold text-slate-700 font-mono text-xs">{formatRupiah(debit)}</span>
                         </div>
                         <div>
                           <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Pembayaran</span>
-                          <span className="font-bold text-emerald-500 font-mono text-xs">{formatRupiah(credit)}</span>
+                          <span className="font-bold text-slate-700 font-mono text-xs">{formatRupiah(credit)}</span>
                         </div>
                       </div>
 
                       <div className="flex justify-between items-center pt-2 mt-1">
                         <div>
-                          <span className="text-[9.5px] text-slate-400 font-bold uppercase tracking-wider block">Sisa tagihan saat ini</span>
+                          <span className="text-[9.5px] text-slate-400 font-bold uppercase tracking-wider block">Sisa Tagihan Saat Ini</span>
                           <span className={`text-base font-extrabold font-mono ${currentBalance > 0 ? "text-rose-600" : "text-emerald-600"}`}>
                             {currentBalance > 0 ? `Kurang: ${formatRupiah(currentBalance)}` : currentBalance < 0 ? `Lebih: ${formatRupiah(Math.abs(currentBalance))}` : "Lunas : Rp 0"}
                           </span>
@@ -504,19 +513,19 @@ export default function AdminKeuangan({
                       {/* Chronological Table ledger */}
                       <div className="mt-4">
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Riwayat Mutasi Tagihan</p>
-                        <div className="border border-slate-100 rounded-lg overflow-x-auto scrollbar-none text-xs">
+                        <div className="border border-slate-100 rounded-xl overflow-hidden overflow-x-auto scrollbar-none text-xs">
                           <table className="w-full text-left border-collapse">
                             <thead>
                               <tr className="bg-slate-50 text-slate-400 font-bold uppercase text-[9px] border-b border-slate-100">
                                 <th className="p-2.5">Tanggal</th>
                                 <th className="p-2.5">Keterangan</th>
-                                <th className="p-2.5 text-right">Tagihan</th>
-                                <th className="p-2.5 text-right">Bayar</th>
-                                <th className="p-2.5 text-right">Kurang</th>
+                                <th className="p-2.5 text-right">Debit (+)</th>
+                                <th className="p-2.5 text-right">Kredit (-)</th>
+                                <th className="p-2.5 text-right">Saldo</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {filteredLedger.slice().reverse().map((item) => (
+                              {[...filteredLedger].sort((a, b) => (b.tanggal || "").localeCompare(a.tanggal || "")).map((item) => (
                                 <tr key={item.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
                                   <td className="p-2.5 text-[10px] font-medium font-mono text-slate-500 whitespace-nowrap">{formatTanggalIndo(item.tanggal)}</td>
                                   <td className="p-2.5 font-semibold text-slate-700 leading-tight">{item.keterangan}</td>
@@ -549,11 +558,10 @@ export default function AdminKeuangan({
           ============================================== */}
       {activeSubTab === "titipan" && (
         <div className="space-y-4">
-          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-5 px-2">Status Saldo Titipan Tutor</h3>
-          <div className="bg-white p-4 rounded-lg border border-slate-100 shadow-xs">
-            
+          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5">Status Saldo Titipan Tutor</h3>
+          <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">            
             <div className="space-y-3">
-              {db.tutors.map((tutor) => {
+              {sortedTutors.map((tutor) => {
                 const pendingDeposit = getTutorDepositBalance(db, tutor.id);
                 
                 return (
@@ -577,12 +585,13 @@ export default function AdminKeuangan({
 
           {/* Pending payments to be confirmed / handed over to Admin */}
           <div>
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-5 px-2">Verifikasi Setoran Pembayaran</h3>
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5">Verifikasi Setoran Pembayaran</h3>
             <div className="space-y-3">
               {/* Filter payments with method 'tutor' */}
               {(() => {
                 const tutorPayments = db.payments.filter(p => p.metode === "tutor");
-                const filteredPayments = filterByDateRange(tutorPayments, rangeType, customStart, customEnd);
+                const filteredPayments = filterByDateRange(tutorPayments, rangeType, customStart, customEnd)
+                  .sort((a, b) => b.tanggal.localeCompare(a.tanggal) || (b.id || "").localeCompare(a.id || "", undefined, { numeric: true }));
 
                 return (
                   <>
@@ -590,7 +599,7 @@ export default function AdminKeuangan({
                       <div 
                         key={p.id} 
                         id={`pending-payment-card-${p.id}`}
-                        className="bg-white p-4 rounded-lg border border-slate-100 shadow-3xs flex flex-col gap-2 relative"
+                        className="bg-white p-4 rounded-2xl border border-slate-100 shadow-3xs flex flex-col gap-2 relative"
                       >
                         <div className="flex justify-between items-center">
                           <span className="text-[9.5px] font-bold font-mono bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full">
@@ -653,11 +662,11 @@ export default function AdminKeuangan({
                             <button
                               id={`undo-handover-btn-${p.id}`}
                               onClick={() => handleHandoverUndo(p.id)}
-                              className="flex items-center gap-1 text-[10px] font-extrabold text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2.5 py-1.5 rounded-xl cursor-pointer transition-all active:scale-95"
+                              className="flex items-center gap-1 text-[10px] font-extrabold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-1.5 rounded-xl cursor-pointer transition-all active:scale-95"
                               title="Batalkan / Urungkan Verifikasi Setoran"
                             >
                               <RotateCcw size={12} />
-                              Batalkan
+                              Batalkan Verifikasi
                             </button>
                           )}
                         </div>
@@ -683,19 +692,19 @@ export default function AdminKeuangan({
           {!selectedTutor ? (
             // Tutor list and honor owed summaries
             <div className="space-y-3">
-              <div className="flex justify-between items-center mb-5">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider px-2">Rekening Honor Tutor</span>
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Rekening Honor Tutor</span>
                 <button
                   id="keu-pay-honor-btn"
                   onClick={() => setIsHonorModalOpen(true)}
                   className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-xl border border-indigo-100 hover:bg-indigo-100 transition-all cursor-pointer"
                 >
                   <Plus size={14} />
-                  Bayar Honor
+                  Bayar Honor (Slip)
                 </button>
               </div>
 
-              {db.tutors.map((tutor) => {
+              {sortedTutors.map((tutor) => {
                 const balance = getTutorHonorBalance(db, tutor.id);
                 return (
                   <div
@@ -705,11 +714,12 @@ export default function AdminKeuangan({
                       setSelectedTutor(tutor);
                       setHonorTutorId(tutor.id);
                     }}
-                    className="bg-white p-5 rounded-lg border border-slate-100 shadow-3xs flex items-center justify-between hover:border-brand-300 transition-all cursor-pointer active:scale-98"
+                    className="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-3xs flex items-center justify-between hover:border-brand-300 transition-all cursor-pointer active:scale-98"
                   >
                     <div className="min-w-0 flex-1 pr-3">
                       <p className="text-[9px] font-bold text-slate-400 font-mono uppercase tracking-wider">{tutor.id}</p>
                       <h4 className="text-sm font-extrabold text-slate-800 truncate tracking-tight">{tutor.nama}</h4>
+                      <p className="text-[10.5px] text-slate-500 truncate mt-0.5 font-medium">{tutor.telepon}</p>
                     </div>
 
                     <div className="text-right shrink-0 flex items-center gap-2">
@@ -759,11 +769,11 @@ export default function AdminKeuangan({
                       <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-xl text-xs">
                         <div>
                           <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Total Honor</span>
-                          <span className="font-bold text-rose-500 font-mono text-xs">{formatRupiah(earned)}</span>
+                          <span className="font-bold text-rose-600 font-mono text-xs">{formatRupiah(earned)}</span>
                         </div>
                         <div>
-                          <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Honor terbayar</span>
-                          <span className="font-bold text-emerald-500 font-mono text-xs">{formatRupiah(paid)}</span>
+                          <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Honor Dibayar</span>
+                          <span className="font-bold text-emerald-600 font-mono text-xs">{formatRupiah(paid)}</span>
                         </div>
                       </div>
 
@@ -800,19 +810,19 @@ export default function AdminKeuangan({
                       {/* Chronological Table ledger */}
                       <div className="mt-4">
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Riwayat Mutasi Honor</p>
-                        <div className="border border-slate-100 rounded-xl overflow-x-auto scrollbar-none text-xs">
+                        <div className="border border-slate-100 rounded-xl overflow-hidden overflow-x-auto scrollbar-nonetext-xs">
                           <table className="w-full text-left border-collapse">
                             <thead>
                               <tr className="bg-slate-50 text-slate-400 font-bold uppercase text-[9px] border-b border-slate-100">
                                 <th className="p-2.5">Tanggal</th>
                                 <th className="p-2.5">Keterangan</th>
-                                <th className="p-2.5 text-right">Tarik Honor</th>
-                                <th className="p-2.5 text-right">Honor Masuk</th>
-                                <th className="p-2.5 text-right">Sisa Honor</th>
+                                <th className="p-2.5 text-right">Debit (Tarik)</th>
+                                <th className="p-2.5 text-right">Kredit (Hak Sesi)</th>
+                                <th className="p-2.5 text-right">Saldo Honor</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {filteredLedger.slice().reverse().map((item) => (
+                              {[...filteredLedger].sort((a, b) => (b.tanggal || "").localeCompare(a.tanggal || "")).map((item) => (
                                 <tr key={item.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
                                   <td className="p-2.5 text-[10px] font-medium font-mono text-slate-500 whitespace-nowrap">{formatTanggalIndo(item.tanggal)}</td>
                                   <td className="p-2.5 font-semibold text-slate-700 leading-tight">{item.keterangan}</td>
@@ -841,56 +851,49 @@ export default function AdminKeuangan({
       )}
 
       {/* ==============================================
-          4. BUKU KAS LEMBAGA SUB-TAB
+          4. BUKU KAS LEMBAGA SUB-TAB (UNIFIED BUKU KAS)
           ============================================== */}
-      {activeSubTab === "kas" && (
-        <div className="space-y-4">
-        <div className="relative hide-overflow-visual rounded-lg bg-gradient-to-br from-emerald-600 to-emerald-800 p-2 text-white shadow-sm flex flex-col gap-1">
-          {/* Header */}
-          <p className="text-[12px] font-bold uppercase tracking-widest text-emerald-100 px-2 py-2">
-            Total Kas Lembaga Saat Ini
-          </p>
-
-          {/* Container Utama: Nominal (Kiri) & Tombol Bersub (Kanan) */}
-          <div className="flex items-center justify-between gap-4">
-            {/* Nominal */}
-            <h2 className="font-mono text-3xl font-black tracking-tight whitespace-nowrap">
-              {formatRupiah(getKasLembagaBalance(db))}
-            </h2>
-
-            {/* Action Buttons (Bersub / Ditumpuk Vertikal & Rata Kanan) */}
-            <div className="flex flex-col items-end gap-2">
+      {(activeSubTab === "kas" || activeSubTab === "lain") && (
+        <div className="space-y-4 animate-fade-in">
+          {/* Header Card with Balance & Action Buttons */}
+          <div className="bg-gradient-to-br from-emerald-700 via-emerald-800 to-teal-900 text-white p-5 rounded-3xl shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 relative overflow-hidden">
+            <div>
+              <p className="text-[10px] text-emerald-100 uppercase tracking-widest font-bold">Total Saldo Kas Lembaga Saat Ini</p>
+              <h2 className="text-2xl font-black font-mono tracking-tight mt-1">{formatRupiah(getKasLembagaBalance(db))}</h2>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-2.5">
               <button
+                id="record-other-income-btn"
                 onClick={() => setIsOtherIncomeModalOpen(true)}
-                className="flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-2 text-xs font-bold text-emerald-800 shadow-sm transition-all hover:bg-emerald-50 active:scale-95 cursor-pointer whitespace-nowrap"
+                className="flex items-center gap-1.5 text-xs font-bold bg-white text-emerald-800 hover:bg-emerald-50 px-3.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-xs active:scale-95 border border-emerald-100"
               >
-                <Plus size={14} />
+                <Plus size={15} className="text-emerald-600" />
                 Pemasukan Lain
               </button>
 
               <button
                 id="record-misc-expense-btn"
                 onClick={() => setIsExpenseModalOpen(true)}
-                className="flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-2 text-xs font-bold text-emerald-800 shadow-sm transition-all hover:bg-emerald-50 active:scale-95 cursor-pointer whitespace-nowrap"
+                className="flex items-center gap-1.5 text-xs font-bold bg-rose-600/90 hover:bg-rose-600 text-white px-3.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-xs active:scale-95"
               >
-                <Minus size={14} />
+                <Minus size={15} />
                 Pengeluaran Lain
               </button>
             </div>
           </div>
-        </div>
-
-
 
           <div>
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-5 px-2">Arus Buku Kas Lembaga</h3>
+            <div className="flex items-center justify-between mb-2.5">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Arus Buku Kas Lembaga</h3>
+            </div>
             
-            <div className="border border-slate-100 rounded-lg bg-white overflow-x-auto scrollbar-none text-xs shadow-3xs">
+            <div className="border border-slate-100 rounded-2xl bg-white overflow-hidden overflow-x-auto scrollbar-none text-xs shadow-3xs">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 text-slate-400 font-bold uppercase text-[9px] border-b border-slate-100">
                     <th className="p-3">Tanggal</th>
-                    <th className="p-3">Keterangan</th>
+                    <th className="p-3">Keterangan Transaksi</th>
                     <th className="p-3 text-right">Inflow(+)</th>
                     <th className="p-3 text-right">Outflow(-)</th>
                     <th className="p-3 text-right">Saldo Kas</th>
@@ -901,7 +904,7 @@ export default function AdminKeuangan({
                     const filteredKas = filterByDateRange(db.kas, rangeType, customStart, customEnd);
                     return (
                       <>
-                        {filteredKas.slice().reverse().map((item) => (
+                        {[...filteredKas].sort((a, b) => (b.tanggal || "").localeCompare(a.tanggal || "")).map((item) => (
                           <tr key={item.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
                             <td className="p-3 text-[10px] font-medium font-mono text-slate-500 whitespace-nowrap">{formatTanggalIndo(item.tanggal)}</td>
                             <td className="p-3 font-semibold text-slate-700 leading-tight">{item.keterangan}</td>
@@ -933,7 +936,7 @@ export default function AdminKeuangan({
       {/* 1. STUDENT PAYMENT MODAL */}
       {isPayModalOpen && (
         <div id="payment-form-modal" className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white w-full max-w-sm rounded-3xl shadow-xl hide-overflow-visual animate-slide-up">
+          <div className="bg-white w-full max-w-sm rounded-3xl shadow-xl overflow-hidden animate-slide-up">
             <div className="bg-emerald-600 text-white p-4 flex justify-between items-center">
               <h3 className="font-bold text-sm tracking-tight">Terima Pembayaran Siswa</h3>
               <Coins size={18} />
@@ -948,7 +951,7 @@ export default function AdminKeuangan({
                   onChange={(e) => setPaySiswaId(e.target.value)}
                   className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
                 >
-                  {db.students.map((s) => (
+                  {sortedStudents.map((s) => (
                     <option key={s.id} value={s.id}>{s.nama} ({s.id})</option>
                   ))}
                 </select>
@@ -974,7 +977,7 @@ export default function AdminKeuangan({
                   onChange={(e) => setPayMetode(e.target.value as any)}
                   className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
                 >
-                  <option value="admin">Langsung ke Admin</option>
+                  <option value="admin">Langsung ke Admin (Kas Lembaga)</option>
                   <option value="tutor">Dititipkan Lewat Tutor</option>
                 </select>
               </div>
@@ -989,8 +992,8 @@ export default function AdminKeuangan({
                     className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
                   >
                     <option value="">-- Pilih Tutor --</option>
-                    {db.tutors.filter(t => t.status === "aktif").map((t) => (
-                      <option key={t.id} value={t.id}>{t.nama}</option>
+                    {sortedTutors.filter(t => t.status === "aktif").map((t) => (
+                      <option key={t.id} value={t.id}>{t.nama} ({t.id})</option>
                     ))}
                   </select>
                   <p className="text-[10px] text-amber-600 mt-1 flex items-start gap-1">
@@ -1034,7 +1037,7 @@ export default function AdminKeuangan({
       {/* 2. TUTOR HONOR DISBURSEMENT MODAL */}
       {isHonorModalOpen && (
         <div id="honor-form-modal" className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white w-full max-w-sm rounded-3xl shadow-xl hide-overflow-visual animate-slide-up">
+          <div className="bg-white w-full max-w-sm rounded-3xl shadow-xl overflow-hidden animate-slide-up">
             <div className="bg-indigo-600 text-white p-4 flex justify-between items-center">
               <h3 className="font-bold text-sm tracking-tight">Bayar Gaji / Honor Tutor</h3>
               <Receipt size={18} />
@@ -1053,8 +1056,8 @@ export default function AdminKeuangan({
                   }}
                   className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
                 >
-                  {db.tutors.map((t) => (
-                    <option key={t.id} value={t.id}>{t.nama} (Saldo: {formatRupiah(getTutorHonorBalance(db, t.id))})</option>
+                  {sortedTutors.map((t) => (
+                    <option key={t.id} value={t.id}>{t.nama} ({t.id}) (Saldo: {formatRupiah(getTutorHonorBalance(db, t.id))})</option>
                   ))}
                 </select>
               </div>
@@ -1071,9 +1074,9 @@ export default function AdminKeuangan({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2 bg-slate-50/50 p-2.5 rounded-lg border border-slate-100">
+              <div className="grid grid-cols-2 gap-2 bg-slate-50/50 p-2.5 rounded-2xl border border-slate-100">
                 <div>
-                  <label className="block text-[10.5px] text-rose-500 font-bold uppercase tracking-wider mb-1">Potongan Honor (Rp)</label>
+                  <label className="block text-[10.5px] text-amber-800 font-bold uppercase tracking-wider mb-1">Potongan Honor (Rp)</label>
                   <input
                     type="number"
                     id="input-honor-potongan"
@@ -1089,7 +1092,7 @@ export default function AdminKeuangan({
                   <input
                     type="text"
                     id="input-honor-alasan-potongan"
-                    placeholder="Contoh: Kas, Tabungan"
+                    placeholder="Contoh: Terlambat, Denda"
                     value={honorKeteranganPotongan}
                     onChange={(e) => setHonorKeteranganPotongan(e.target.value)}
                     className="w-full text-xs font-semibold p-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-amber-500"
@@ -1099,8 +1102,8 @@ export default function AdminKeuangan({
 
               {/* Live Preview of Net Honor */}
               {honorPotongan > 0 && (
-                <div className="bg-amber-50/70 border border-amber-100 rounded-lg p-3 text-xs flex justify-between items-center text-amber-900">
-                  <div className="font-bold">Honor Bersih:</div>
+                <div className="bg-amber-50/70 border border-amber-100 rounded-2xl p-3 text-xs flex justify-between items-center text-amber-900">
+                  <div className="font-bold">Honor Bersih (Take Home Pay):</div>
                   <div className="font-black text-sm font-mono text-amber-800">
                     {formatRupiah(Math.max(0, honorJumlah - honorPotongan))}
                   </div>
@@ -1168,7 +1171,7 @@ export default function AdminKeuangan({
         <div id="expense-form-modal" className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white w-full max-w-sm rounded-3xl shadow-xl overflow-hidden animate-slide-up">
             <div className="bg-rose-600 text-white p-4 flex justify-between items-center">
-              <h3 className="font-bold text-sm tracking-tight">Catat Pengeluaran Operasional</h3>
+              <h3 className="font-bold text-sm tracking-tight">Catat Pengeluaran Lain / Operasional</h3>
               <ArrowDownLeft size={18} />
             </div>
 
@@ -1239,17 +1242,20 @@ export default function AdminKeuangan({
             </div>
 
             <form onSubmit={handleOtherIncomeSubmit} className="p-5 space-y-4">
-
               <div>
-                <label className="block text-[10.5px] text-slate-400 font-bold uppercase tracking-wider mb-1">Keterangan Pemasukan</label>
-                <input
-                  id="input-outsense-desc"
+                <label className="block text-[10.5px] text-slate-400 font-bold uppercase tracking-wider mb-1">Jenis Pemasukan *</label>
+                <select
                   required
-                  placeholder="Contoh: Pembelian Spidol & Kertas HVS"
-                  value={otherIncomeKeterangan}
-                  onChange={(e) => setOtherIncomeKeterangan(e.target.value)}
+                  value={otherIncomeJenis}
+                  onChange={(e) => setOtherIncomeJenis(e.target.value)}
                   className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
-                />
+                >
+                  <option value="Uang Pendaftaran">Uang Pendaftaran (Siswa Baru)</option>
+                  <option value="Modul Belajar">Modul & Buku Belajar</option>
+                  <option value="Seragam Lembaga">Pembelian Seragam</option>
+                  <option value="Donasi / Sponsor">Donasi / Sponsorship</option>
+                  <option value="Pemasukan Lain-lain">Lain-lain</option>
+                </select>
               </div>
 
               <div>
@@ -1268,6 +1274,16 @@ export default function AdminKeuangan({
                 <CustomDatePicker
                   value={otherIncomeTanggal}
                   onChange={(val) => setOtherIncomeTanggal(val)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10.5px] text-slate-400 font-bold uppercase tracking-wider mb-1">Keterangan / Catatan Tambahan (Opsional)</label>
+                <textarea
+                  placeholder="Contoh: Pembelian buku modul matematika oleh murid RBS01"
+                  value={otherIncomeKeterangan}
+                  onChange={(e) => setOtherIncomeKeterangan(e.target.value)}
+                  className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none h-16 resize-none"
                 />
               </div>
 

@@ -99,29 +99,214 @@ export function safeSetItem(key: string, value: string): void {
   }
 }
 
+// SORT HELPERS
+export function sortById<T extends { id?: string }>(items: T[]): T[] {
+  return [...(items || [])].sort((a, b) => 
+    (a.id || "").localeCompare(b.id || "", undefined, { numeric: true, sensitivity: "base" })
+  );
+}
+
+export function sortByDateDesc<T extends { tanggal?: string; id?: string }>(items: T[]): T[] {
+  return [...(items || [])].sort((a, b) => {
+    const dateComp = (b.tanggal || "").localeCompare(a.tanggal || "");
+    if (dateComp !== 0) return dateComp;
+    return (b.id || "").localeCompare(a.id || "", undefined, { numeric: true, sensitivity: "base" });
+  });
+}
+
+export function sortByDateAsc<T extends { tanggal?: string; id?: string }>(items: T[]): T[] {
+  return [...(items || [])].sort((a, b) => {
+    const dateComp = (a.tanggal || "").localeCompare(b.tanggal || "");
+    if (dateComp !== 0) return dateComp;
+    return (a.id || "").localeCompare(b.id || "", undefined, { numeric: true, sensitivity: "base" });
+  });
+}
+
+export function recalculateAllLedgers(db: Database): Database {
+  const nextDb = { ...db };
+
+  // 1. Recalculate Student Ledger per student sorted chronologically by tanggal (ascending)
+  const studentsMap = new Map<string, TransaksiRekeningSiswa[]>();
+  (nextDb.studentLedger || []).forEach(tx => {
+    if (!tx || !tx.siswaId) return;
+    if (!studentsMap.has(tx.siswaId)) studentsMap.set(tx.siswaId, []);
+    studentsMap.get(tx.siswaId)!.push({ ...tx });
+  });
+
+  const updatedStudentLedger: TransaksiRekeningSiswa[] = [];
+  studentsMap.forEach((txList) => {
+    // Sort chronologically (earliest to latest by date)
+    txList.sort((a, b) => {
+      const dateComp = (a.tanggal || "").localeCompare(b.tanggal || "");
+      if (dateComp !== 0) return dateComp;
+      if (a.tipe !== b.tipe) return a.tipe === "debit" ? -1 : 1;
+      return (a.id || "").localeCompare(b.id || "");
+    });
+
+    let running = 0;
+    txList.forEach(tx => {
+      if (tx.tipe === "debit") {
+        running += tx.jumlah;
+      } else {
+        running -= tx.jumlah;
+      }
+      tx.saldoBerjalan = running;
+      updatedStudentLedger.push(tx);
+    });
+  });
+  nextDb.studentLedger = updatedStudentLedger;
+
+  // 2. Recalculate Tutor Ledger per tutor sorted chronologically by tanggal (ascending)
+  const tutorsMap = new Map<string, TransaksiHonorTutor[]>();
+  (nextDb.tutorLedger || []).forEach(tx => {
+    if (!tx || !tx.tutorId) return;
+    if (!tutorsMap.has(tx.tutorId)) tutorsMap.set(tx.tutorId, []);
+    tutorsMap.get(tx.tutorId)!.push({ ...tx });
+  });
+
+  const updatedTutorLedger: TransaksiHonorTutor[] = [];
+  tutorsMap.forEach((txList) => {
+    // Sort chronologically (earliest to latest by date)
+    txList.sort((a, b) => {
+      const dateComp = (a.tanggal || "").localeCompare(b.tanggal || "");
+      if (dateComp !== 0) return dateComp;
+      if (a.tipe !== b.tipe) return a.tipe === "kredit" ? -1 : 1;
+      return (a.id || "").localeCompare(b.id || "");
+    });
+
+    let running = 0;
+    txList.forEach(tx => {
+      if (tx.tipe === "kredit") {
+        running += tx.jumlah;
+      } else {
+        running -= tx.jumlah;
+      }
+      tx.saldoBerjalan = running;
+      updatedTutorLedger.push(tx);
+    });
+  });
+  nextDb.tutorLedger = updatedTutorLedger;
+
+  // 3. Recalculate Kas Lembaga sorted chronologically by tanggal (ascending)
+  const kasList = (nextDb.kas || []).map(k => ({ ...k }));
+  kasList.sort((a, b) => {
+    const dateComp = (a.tanggal || "").localeCompare(b.tanggal || "");
+    if (dateComp !== 0) return dateComp;
+    if (a.tipe !== b.tipe) return a.tipe === "masuk" ? -1 : 1;
+    return (a.id || "").localeCompare(b.id || "");
+  });
+
+  let kasRunning = 0;
+  nextDb.kas = kasList.map(k => {
+    if (k.tipe === "masuk") {
+      kasRunning += k.jumlah;
+    } else {
+      kasRunning -= k.jumlah;
+    }
+    return { ...k, saldoBerjalan: kasRunning };
+  });
+
+  return nextDb;
+}
+
 export function ensureDatabaseDefaults(parsed: any): Database {
   if (!parsed || typeof parsed !== "object") {
     return generateCleanDatabase();
   }
-  return {
-    programs: Array.isArray(parsed.programs) ? parsed.programs : [],
-    students: Array.isArray(parsed.students) ? parsed.students : [],
-    tutors: Array.isArray(parsed.tutors) ? parsed.tutors : [],
-    sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [],
-    studentLedger: Array.isArray(parsed.studentLedger) ? parsed.studentLedger : [],
-    payments: Array.isArray(parsed.payments) ? parsed.payments : [],
-    tutorLedger: Array.isArray(parsed.tutorLedger) ? parsed.tutorLedger : [],
-    slips: Array.isArray(parsed.slips) ? parsed.slips : [],
-    kas: Array.isArray(parsed.kas) ? parsed.kas : [],
-    otherIncomes: Array.isArray(parsed.otherIncomes) ? parsed.otherIncomes : [],
-    attendanceReports: Array.isArray(parsed.attendanceReports) ? parsed.attendanceReports : [],
-    raports: Array.isArray(parsed.raports) ? parsed.raports : [],
-    schedules: Array.isArray(parsed.schedules) ? parsed.schedules : [],
+
+  const rawDeletedIds = Array.isArray(parsed.deletedIds) ? parsed.deletedIds : [];
+  const deletedSet = new Set<string>(rawDeletedIds);
+
+  const rawStudents = (Array.isArray(parsed.students) ? parsed.students : []).filter((s: any) => s && s.id && !deletedSet.has(s.id));
+  const rawTutors = (Array.isArray(parsed.tutors) ? parsed.tutors : []).filter((t: any) => t && t.id && !deletedSet.has(t.id));
+  const rawPrograms = (Array.isArray(parsed.programs) ? parsed.programs : []).filter((p: any) => p && p.id && !deletedSet.has(p.id));
+  const rawSessions = (Array.isArray(parsed.sessions) ? parsed.sessions : []).filter((s: any) => s && s.id && !deletedSet.has(s.id));
+  const rawPayments = (Array.isArray(parsed.payments) ? parsed.payments : []).filter((p: any) => p && p.id && !deletedSet.has(p.id));
+  const rawSlips = (Array.isArray(parsed.slips) ? parsed.slips : []).filter((s: any) => s && s.id && !deletedSet.has(s.id));
+  const rawOtherIncomes = (Array.isArray(parsed.otherIncomes) ? parsed.otherIncomes : []).filter((o: any) => o && o.id && !deletedSet.has(o.id));
+  const rawAttendanceReports = (Array.isArray(parsed.attendanceReports) ? parsed.attendanceReports : []).filter((a: any) => a && a.id && !deletedSet.has(a.id));
+  const rawRaports = (Array.isArray(parsed.raports) ? parsed.raports : []).filter((r: any) => r && r.id && !deletedSet.has(r.id));
+  const rawSchedules = (Array.isArray(parsed.schedules) ? parsed.schedules : []).filter((sc: any) => sc && sc.id && !deletedSet.has(sc.id));
+
+  // Active entity ID sets to cleanly eliminate orphaned ledger entries
+  const activeSessionIds = new Set(rawSessions.map((s: any) => s.id));
+  const activePaymentIds = new Set(rawPayments.map((p: any) => p.id));
+  const activeSlipIds = new Set(rawSlips.map((s: any) => s.id));
+
+  // Clean studentLedger:
+  // Must not be in deletedSet, must not reference deleted ID, and if it's a session fee or payment, parent entity must exist
+  const rawStudentLedger = (Array.isArray(parsed.studentLedger) ? parsed.studentLedger : []).filter((tx: any) => {
+    if (!tx || !tx.id || deletedSet.has(tx.id)) return false;
+    if (tx.referensiId && deletedSet.has(tx.referensiId)) return false;
+
+    // Check session reference
+    if (tx.referensiId && tx.referensiId.startsWith("RP-") && !activeSessionIds.has(tx.referensiId)) {
+      return false;
+    }
+    if (tx.keterangan && tx.keterangan.includes("[RP-")) {
+      const match = tx.keterangan.match(/\[(RP-[^\]]+)\]/);
+      if (match && match[1] && (deletedSet.has(match[1]) || !activeSessionIds.has(match[1]))) {
+        return false;
+      }
+    }
+    // Check payment reference
+    if (tx.referensiId && tx.referensiId.startsWith("BYR-") && !activePaymentIds.has(tx.referensiId)) {
+      return false;
+    }
+    return true;
+  });
+
+  // Clean tutorLedger:
+  // Must not be in deletedSet, must not reference deleted ID, and if it's a session honor or salary slip, parent entity must exist
+  const rawTutorLedger = (Array.isArray(parsed.tutorLedger) ? parsed.tutorLedger : []).filter((tx: any) => {
+    if (!tx || !tx.id || deletedSet.has(tx.id)) return false;
+    if (tx.referensiId && deletedSet.has(tx.referensiId)) return false;
+
+    // Check session reference
+    if (tx.referensiId && tx.referensiId.startsWith("RP-") && !activeSessionIds.has(tx.referensiId)) {
+      return false;
+    }
+    if (tx.keterangan && tx.keterangan.includes("[RP-")) {
+      const match = tx.keterangan.match(/\[(RP-[^\]]+)\]/);
+      if (match && match[1] && (deletedSet.has(match[1]) || !activeSessionIds.has(match[1]))) {
+        return false;
+      }
+    }
+    // Check salary slip reference
+    if (tx.referensiId && tx.referensiId.startsWith("SLP-") && !activeSlipIds.has(tx.referensiId)) {
+      return false;
+    }
+    return true;
+  });
+
+  // Clean kas:
+  const rawKas = (Array.isArray(parsed.kas) ? parsed.kas : []).filter((k: any) => {
+    if (!k || !k.id || deletedSet.has(k.id)) return false;
+    if (k.referensiId && deletedSet.has(k.referensiId)) return false;
+    return true;
+  });
+
+  const rawDb: Database = {
+    programs: sortById(rawPrograms),
+    students: sortById(rawStudents),
+    tutors: sortById(rawTutors),
+    sessions: sortByDateDesc(rawSessions),
+    studentLedger: rawStudentLedger,
+    payments: sortByDateDesc(rawPayments),
+    tutorLedger: rawTutorLedger,
+    slips: sortByDateDesc(rawSlips),
+    kas: rawKas,
+    otherIncomes: sortByDateDesc(rawOtherIncomes),
+    attendanceReports: sortByDateDesc(rawAttendanceReports),
+    raports: sortByDateDesc(rawRaports),
+    schedules: rawSchedules,
     broadcastMessage: parsed.broadcastMessage ?? "📢 PENGUMUMAN TUTOR: Mohon lakukan serah terima uang titipan pembayaran siswa kepada Staf Administrasi dan catat riwayat pertemuan secara tertib. Terima kasih!",
     adminPassword: parsed.adminPassword ?? "admin123",
-    deletedIds: Array.isArray(parsed.deletedIds) ? parsed.deletedIds : [],
+    deletedIds: Array.from(deletedSet),
     lastUpdated: parsed.lastUpdated || new Date().toISOString()
   };
+
+  return recalculateAllLedgers(rawDb);
 }
 
 export function recordDeletedId(db: Database, id: string): Database {
@@ -214,42 +399,26 @@ export function mergeDatabases(localDb: Database, remoteDb: Database): Database 
     : ((local.adminPassword && local.adminPassword !== "admin123") ? local.adminPassword : (remote.adminPassword || local.adminPassword || "admin123"));
 
   const mergedDb: Database = {
-    programs: mergeArrayById(local.programs || [], remote.programs || []),
-    students: mergeArrayById(local.students || [], remote.students || []),
-    tutors: Array.from(mergedTutorsMap.values()),
-    sessions: mergeArrayById(local.sessions || [], remote.sessions || []),
+    programs: sortById(mergeArrayById(local.programs || [], remote.programs || [])),
+    students: sortById(mergeArrayById(local.students || [], remote.students || [])),
+    tutors: sortById(Array.from(mergedTutorsMap.values())),
+    sessions: sortByDateDesc(mergeArrayById(local.sessions || [], remote.sessions || [])),
     studentLedger: mergeArrayById(local.studentLedger || [], remote.studentLedger || []),
-    payments: mergeArrayById(local.payments || [], remote.payments || []),
+    payments: sortByDateDesc(mergeArrayById(local.payments || [], remote.payments || [])),
     tutorLedger: mergeArrayById(local.tutorLedger || [], remote.tutorLedger || []),
-    slips: mergeArrayById(local.slips || [], remote.slips || []),
+    slips: sortByDateDesc(mergeArrayById(local.slips || [], remote.slips || [])),
     kas: mergeArrayById(local.kas || [], remote.kas || []),
-    otherIncomes: mergeArrayById(local.otherIncomes || [], remote.otherIncomes || []),
-    attendanceReports,
+    otherIncomes: sortByDateDesc(mergeArrayById(local.otherIncomes || [], remote.otherIncomes || [])),
+    attendanceReports: sortByDateDesc(attendanceReports),
     schedules: mergeArrayById(local.schedules || [], remote.schedules || []),
-    raports: mergeArrayById(local.raports || [], remote.raports || []),
+    raports: sortByDateDesc(mergeArrayById(local.raports || [], remote.raports || [])),
     broadcastMessage: remote.broadcastMessage || local.broadcastMessage,
     adminPassword: resolvedAdminPassword,
     deletedIds: Array.from(deletedSet),
     lastUpdated: new Date().toISOString()
   };
 
-  if (mergedDb.kas && mergedDb.kas.length > 0) {
-    mergedDb.kas.sort((a, b) => {
-      if (a.tanggal !== b.tanggal) return a.tanggal.localeCompare(b.tanggal);
-      return (a.id || "").localeCompare(b.id || "", undefined, { numeric: true });
-    });
-    let running = 0;
-    mergedDb.kas = mergedDb.kas.map(k => {
-      if (k.tipe === "masuk") {
-        running += k.jumlah;
-      } else {
-        running -= k.jumlah;
-      }
-      return { ...k, saldoBerjalan: running };
-    });
-  }
-
-  return mergedDb;
+  return recalculateAllLedgers(mergedDb);
 }
 
 export function getDatabase(): Database {
@@ -896,8 +1065,9 @@ export function undoVerifyAttendanceReport(
   db: Database,
   reportId: string
 ): Database {
+  if (!reportId) return db;
   let nextDb = { ...db };
-  const reportIdx = nextDb.attendanceReports.findIndex(r => r.id === reportId);
+  const reportIdx = (nextDb.attendanceReports || []).findIndex(r => r.id === reportId);
   if (reportIdx === -1) return db;
 
   const report = nextDb.attendanceReports[reportIdx];
@@ -916,23 +1086,35 @@ export function undoVerifyAttendanceReport(
   nextDb.attendanceReports[reportIdx] = updatedReport;
 
   if (oldStatus === "setuju") {
-    // Find the corresponding session
-    const session = nextDb.sessions.find(
-      s => s.tanggal === report.tanggal &&
-           s.siswaId === report.siswaId &&
-           s.tutorId === report.tutorId &&
-           s.programId === report.programId &&
-           s.catatan && s.catatan.includes(reportId)
+    // Find all corresponding sessions
+    const relatedSessions = (nextDb.sessions || []).filter(
+      s => (s.catatan && s.catatan.includes(reportId)) ||
+           (s.tanggal === report.tanggal && s.siswaId === report.siswaId && s.tutorId === report.tutorId && s.programId === report.programId)
     );
-    if (session) {
-      nextDb = deleteSessionTransaction(nextDb, session.id);
-    } else {
-      saveDatabase(nextDb);
-    }
-  } else {
-    saveDatabase(nextDb);
+    relatedSessions.forEach(s => {
+      nextDb = deleteSessionTransaction(nextDb, s.id);
+    });
+
+    // Also remove any direct ledger entries referencing reportId
+    const removedStudentTxs = (nextDb.studentLedger || []).filter(
+      tx => tx.referensiId === reportId || (tx.keterangan && tx.keterangan.includes(reportId))
+    );
+    removedStudentTxs.forEach(tx => { nextDb = recordDeletedId(nextDb, tx.id); });
+    nextDb.studentLedger = (nextDb.studentLedger || []).filter(
+      tx => tx.referensiId !== reportId && !(tx.keterangan && tx.keterangan.includes(reportId))
+    );
+
+    const removedTutorTxs = (nextDb.tutorLedger || []).filter(
+      tx => tx.referensiId === reportId || (tx.keterangan && tx.keterangan.includes(reportId))
+    );
+    removedTutorTxs.forEach(tx => { nextDb = recordDeletedId(nextDb, tx.id); });
+    nextDb.tutorLedger = (nextDb.tutorLedger || []).filter(
+      tx => tx.referensiId !== reportId && !(tx.keterangan && tx.keterangan.includes(reportId))
+    );
   }
 
+  nextDb = recalculateAllLedgers(nextDb);
+  saveDatabase(nextDb);
   return nextDb;
 }
 
@@ -941,21 +1123,22 @@ export function deleteSessionTransaction(
   db: Database,
   sessionId: string
 ): Database {
-  let nextDb = recordDeletedId(db, sessionId);
+  if (!sessionId) return db;
+  let nextDb = { ...db };
+  nextDb = recordDeletedId(nextDb, sessionId);
   
-  // Find the session
-  const session = nextDb.sessions.find(s => s.id === sessionId);
-  if (!session) return db;
+  // Find the session if it exists
+  const session = (nextDb.sessions || []).find(s => s.id === sessionId);
 
   // Remove session from array
-  nextDb.sessions = nextDb.sessions.filter(s => s.id !== sessionId);
+  nextDb.sessions = (nextDb.sessions || []).filter(s => s.id !== sessionId);
 
   // If this session was created from an attendance report, revert the report status back to pending
-  if (session.catatan) {
+  if (session?.catatan) {
     const match = session.catatan.match(/\[(LPK-[^\]]+)\]/);
     if (match && match[1]) {
       const reportId = match[1];
-      const reportIdx = nextDb.attendanceReports.findIndex(r => r.id === reportId);
+      const reportIdx = (nextDb.attendanceReports || []).findIndex(r => r.id === reportId);
       if (reportIdx !== -1) {
         nextDb.attendanceReports = [...nextDb.attendanceReports];
         nextDb.attendanceReports[reportIdx] = {
@@ -968,42 +1151,30 @@ export function deleteSessionTransaction(
     }
   }
 
-  // Remove corresponding student ledger entry
-  nextDb.studentLedger = nextDb.studentLedger.filter(
-    tx => !(tx.referensiId === sessionId && tx.siswaId === session.siswaId)
+  // Remove corresponding student ledger entry and record deleted IDs
+  const removedStudentTxs = (nextDb.studentLedger || []).filter(
+    tx => tx.referensiId === sessionId || (tx.keterangan && tx.keterangan.includes(sessionId)) || tx.id === sessionId
   );
-  // Recalculate Student Ledger running balance
-  let studentRunning = 0;
-  nextDb.studentLedger = nextDb.studentLedger.map(tx => {
-    if (tx.siswaId === session.siswaId) {
-      if (tx.tipe === "debit") {
-        studentRunning += tx.jumlah;
-      } else {
-        studentRunning -= tx.jumlah;
-      }
-      return { ...tx, saldoBerjalan: studentRunning };
-    }
-    return tx;
+  removedStudentTxs.forEach(tx => {
+    nextDb = recordDeletedId(nextDb, tx.id);
   });
-
-  // Remove corresponding tutor ledger entry
-  nextDb.tutorLedger = nextDb.tutorLedger.filter(
-    tx => !(tx.referensiId === sessionId && tx.tutorId === session.tutorId)
+  nextDb.studentLedger = (nextDb.studentLedger || []).filter(
+    tx => tx.referensiId !== sessionId && !(tx.keterangan && tx.keterangan.includes(sessionId)) && tx.id !== sessionId
   );
-  // Recalculate Tutor Ledger running balance
-  let tutorRunning = 0;
-  nextDb.tutorLedger = nextDb.tutorLedger.map(tx => {
-    if (tx.tutorId === session.tutorId) {
-      if (tx.tipe === "kredit") {
-        tutorRunning += tx.jumlah;
-      } else {
-        tutorRunning -= tx.jumlah;
-      }
-      return { ...tx, saldoBerjalan: tutorRunning };
-    }
-    return tx;
-  });
 
+  // Remove corresponding tutor ledger entry and record deleted IDs
+  const removedTutorTxs = (nextDb.tutorLedger || []).filter(
+    tx => tx.referensiId === sessionId || (tx.keterangan && tx.keterangan.includes(sessionId)) || tx.id === sessionId
+  );
+  removedTutorTxs.forEach(tx => {
+    nextDb = recordDeletedId(nextDb, tx.id);
+  });
+  nextDb.tutorLedger = (nextDb.tutorLedger || []).filter(
+    tx => tx.referensiId !== sessionId && !(tx.keterangan && tx.keterangan.includes(sessionId)) && tx.id !== sessionId
+  );
+
+  // Recalculate all ledger running balances
+  nextDb = recalculateAllLedgers(nextDb);
   saveDatabase(nextDb);
   return nextDb;
 }
@@ -1013,150 +1184,144 @@ export function deleteAttendanceReport(
   db: Database,
   reportId: string
 ): Database {
-  let nextDb = recordDeletedId(db, reportId);
-  const report = nextDb.attendanceReports.find(r => r.id === reportId);
-  if (!report) return db;
+  if (!reportId) return db;
+  let nextDb = { ...db };
+  nextDb = recordDeletedId(nextDb, reportId);
+  const report = (nextDb.attendanceReports || []).find(r => r.id === reportId);
 
-  // If approved, we must first delete the session transaction associated with it
-  if (report.status === "setuju") {
-    const session = nextDb.sessions.find(
-      s => s.tanggal === report.tanggal &&
-           s.siswaId === report.siswaId &&
-           s.tutorId === report.tutorId &&
-           s.programId === report.programId &&
-           s.catatan && s.catatan.includes(reportId)
-    );
-    if (session) {
-      nextDb = deleteSessionTransaction(nextDb, session.id);
-    }
-  }
+  // Find all associated sessions
+  const relatedSessions = (nextDb.sessions || []).filter(
+    s => (s.catatan && s.catatan.includes(reportId)) ||
+         (report && s.tanggal === report.tanggal && s.siswaId === report.siswaId && s.tutorId === report.tutorId)
+  );
 
-  // Delete from array
-  nextDb.attendanceReports = nextDb.attendanceReports.filter(r => r.id !== reportId);
+  // Delete all associated sessions (which will also purge student & tutor ledgers)
+  relatedSessions.forEach(s => {
+    nextDb = deleteSessionTransaction(nextDb, s.id);
+  });
+
+  // Also remove any direct ledger entries referencing reportId if any exist
+  const removedStudentTxs = (nextDb.studentLedger || []).filter(
+    tx => tx.referensiId === reportId || (tx.keterangan && tx.keterangan.includes(reportId)) || tx.id === reportId
+  );
+  removedStudentTxs.forEach(tx => { nextDb = recordDeletedId(nextDb, tx.id); });
+  nextDb.studentLedger = (nextDb.studentLedger || []).filter(
+    tx => tx.referensiId !== reportId && !(tx.keterangan && tx.keterangan.includes(reportId)) && tx.id !== reportId
+  );
+
+  const removedTutorTxs = (nextDb.tutorLedger || []).filter(
+    tx => tx.referensiId === reportId || (tx.keterangan && tx.keterangan.includes(reportId)) || tx.id === reportId
+  );
+  removedTutorTxs.forEach(tx => { nextDb = recordDeletedId(nextDb, tx.id); });
+  nextDb.tutorLedger = (nextDb.tutorLedger || []).filter(
+    tx => tx.referensiId !== reportId && !(tx.keterangan && tx.keterangan.includes(reportId)) && tx.id !== reportId
+  );
+
+  // Delete from attendance reports array
+  nextDb.attendanceReports = (nextDb.attendanceReports || []).filter(r => r.id !== reportId);
+  
+  nextDb = recalculateAllLedgers(nextDb);
   saveDatabase(nextDb);
   return nextDb;
 }
 
 // 8e. Delete Student Transaction
 export function deleteStudentTransaction(db: Database, studentId: string): Database {
+  if (!studentId) return db;
   let nextDb = recordDeletedId(db, studentId);
-  nextDb.students = nextDb.students.filter(s => s.id !== studentId);
+  nextDb.students = (nextDb.students || []).filter(s => s.id !== studentId);
+  nextDb = recalculateAllLedgers(nextDb);
   saveDatabase(nextDb);
   return nextDb;
 }
 
 // 8f. Delete Tutor Transaction
 export function deleteTutorTransaction(db: Database, tutorId: string): Database {
+  if (!tutorId) return db;
   let nextDb = recordDeletedId(db, tutorId);
-  nextDb.tutors = nextDb.tutors.filter(t => t.id !== tutorId);
+  nextDb.tutors = (nextDb.tutors || []).filter(t => t.id !== tutorId);
+  nextDb = recalculateAllLedgers(nextDb);
   saveDatabase(nextDb);
   return nextDb;
 }
 
 // 8g. Delete Program Transaction
 export function deleteProgramTransaction(db: Database, programId: string): Database {
+  if (!programId) return db;
   let nextDb = recordDeletedId(db, programId);
-  nextDb.programs = nextDb.programs.filter(p => p.id !== programId);
+  nextDb.programs = (nextDb.programs || []).filter(p => p.id !== programId);
+  nextDb = recalculateAllLedgers(nextDb);
   saveDatabase(nextDb);
   return nextDb;
 }
 
 // 8h. Delete Other Income Transaction
 export function deleteOtherIncomeTransaction(db: Database, incomeId: string): Database {
+  if (!incomeId) return db;
   let nextDb = recordDeletedId(db, incomeId);
   nextDb.otherIncomes = (nextDb.otherIncomes || []).filter(o => o.id !== incomeId);
+  
   // Also delete corresponding Kas entry if linked
-  nextDb.kas = (nextDb.kas || []).filter(k => k.referensiId !== incomeId && k.id !== incomeId);
-  // Recalculate Kas running balance
-  if (nextDb.kas && nextDb.kas.length > 0) {
-    let running = 0;
-    nextDb.kas = nextDb.kas.map(k => {
-      if (k.tipe === "masuk") running += k.jumlah;
-      else running -= k.jumlah;
-      return { ...k, saldoBerjalan: running };
-    });
-  }
+  const removedKas = (nextDb.kas || []).filter(k => k.referensiId === incomeId || k.id === incomeId || (k.keterangan && k.keterangan.includes(incomeId)));
+  removedKas.forEach(k => { nextDb = recordDeletedId(nextDb, k.id); });
+  nextDb.kas = (nextDb.kas || []).filter(k => k.referensiId !== incomeId && k.id !== incomeId && !(k.keterangan && k.keterangan.includes(incomeId)));
+  
+  nextDb = recalculateAllLedgers(nextDb);
   saveDatabase(nextDb);
   return nextDb;
 }
 
 // 8i. Delete Slip Gaji Transaction
 export function deleteSlipGajiTransaction(db: Database, slipId: string): Database {
+  if (!slipId) return db;
   let nextDb = recordDeletedId(db, slipId);
-  const slip = nextDb.slips.find(s => s.id === slipId);
-  if (!slip) return db;
+  nextDb.slips = (nextDb.slips || []).filter(s => s.id !== slipId);
 
-  nextDb.slips = nextDb.slips.filter(s => s.id !== slipId);
   // Remove from tutor ledger
-  nextDb.tutorLedger = nextDb.tutorLedger.filter(tx => tx.referensiId !== slipId);
-  // Recalculate tutor ledger
-  let tutorRunning = 0;
-  nextDb.tutorLedger = nextDb.tutorLedger.map(tx => {
-    if (tx.tutorId === slip.tutorId) {
-      if (tx.tipe === "kredit") tutorRunning += tx.jumlah;
-      else tutorRunning -= tx.jumlah;
-      return { ...tx, saldoBerjalan: tutorRunning };
-    }
-    return tx;
-  });
-  // Remove corresponding kas entry
-  nextDb.kas = nextDb.kas.filter(k => k.referensiId !== slipId);
-  let kasRunning = 0;
-  nextDb.kas = nextDb.kas.map(k => {
-    if (k.tipe === "masuk") kasRunning += k.jumlah;
-    else kasRunning -= k.jumlah;
-    return { ...k, saldoBerjalan: kasRunning };
-  });
+  const removedTutorTxs = (nextDb.tutorLedger || []).filter(tx => tx.referensiId === slipId || (tx.keterangan && tx.keterangan.includes(slipId)) || tx.id === slipId);
+  removedTutorTxs.forEach(tx => { nextDb = recordDeletedId(nextDb, tx.id); });
+  nextDb.tutorLedger = (nextDb.tutorLedger || []).filter(tx => tx.referensiId !== slipId && !(tx.keterangan && tx.keterangan.includes(slipId)) && tx.id !== slipId);
 
+  // Remove corresponding kas entry
+  const removedKas = (nextDb.kas || []).filter(k => k.referensiId === slipId || (k.keterangan && k.keterangan.includes(slipId)) || k.id === slipId);
+  removedKas.forEach(k => { nextDb = recordDeletedId(nextDb, k.id); });
+  nextDb.kas = (nextDb.kas || []).filter(k => k.referensiId !== slipId && !(k.keterangan && k.keterangan.includes(slipId)) && k.id !== slipId);
+
+  nextDb = recalculateAllLedgers(nextDb);
   saveDatabase(nextDb);
   return nextDb;
 }
 
 // 8j. Delete Payment Transaction
 export function deletePaymentTransaction(db: Database, paymentId: string): Database {
+  if (!paymentId) return db;
   let nextDb = recordDeletedId(db, paymentId);
-  const pay = nextDb.payments.find(p => p.id === paymentId);
-  if (!pay) return db;
+  nextDb.payments = (nextDb.payments || []).filter(p => p.id !== paymentId);
 
-  nextDb.payments = nextDb.payments.filter(p => p.id !== paymentId);
-
-  // If was direct transfer/cash or handed over, remove from studentLedger and kas
-  nextDb.studentLedger = nextDb.studentLedger.filter(tx => tx.referensiId !== paymentId);
-  // Recalculate student ledger
-  let studentRunning = 0;
-  nextDb.studentLedger = nextDb.studentLedger.map(tx => {
-    if (tx.siswaId === pay.siswaId) {
-      if (tx.tipe === "debit") studentRunning += tx.jumlah;
-      else studentRunning -= tx.jumlah;
-      return { ...tx, saldoBerjalan: studentRunning };
-    }
-    return tx;
-  });
+  // Remove from studentLedger
+  const removedStudentTxs = (nextDb.studentLedger || []).filter(tx => tx.referensiId === paymentId || (tx.keterangan && tx.keterangan.includes(paymentId)) || tx.id === paymentId);
+  removedStudentTxs.forEach(tx => { nextDb = recordDeletedId(nextDb, tx.id); });
+  nextDb.studentLedger = (nextDb.studentLedger || []).filter(tx => tx.referensiId !== paymentId && !(tx.keterangan && tx.keterangan.includes(paymentId)) && tx.id !== paymentId);
 
   // Remove corresponding kas entry
-  nextDb.kas = nextDb.kas.filter(k => k.referensiId !== paymentId);
-  let kasRunning = 0;
-  nextDb.kas = nextDb.kas.map(k => {
-    if (k.tipe === "masuk") kasRunning += k.jumlah;
-    else kasRunning -= k.jumlah;
-    return { ...k, saldoBerjalan: kasRunning };
-  });
+  const removedKas = (nextDb.kas || []).filter(k => k.referensiId === paymentId || (k.keterangan && k.keterangan.includes(paymentId)) || k.id === paymentId);
+  removedKas.forEach(k => { nextDb = recordDeletedId(nextDb, k.id); });
+  nextDb.kas = (nextDb.kas || []).filter(k => k.referensiId !== paymentId && !(k.keterangan && k.keterangan.includes(paymentId)) && k.id !== paymentId);
 
+  nextDb = recalculateAllLedgers(nextDb);
   saveDatabase(nextDb);
   return nextDb;
 }
 
 // 8k. Delete General Expense Transaction (Kas Keluar)
 export function deleteGeneralExpenseTransaction(db: Database, kasIdOrRefId: string): Database {
+  if (!kasIdOrRefId) return db;
   let nextDb = recordDeletedId(db, kasIdOrRefId);
-  nextDb.kas = nextDb.kas.filter(k => k.id !== kasIdOrRefId && k.referensiId !== kasIdOrRefId);
-  let kasRunning = 0;
-  nextDb.kas = nextDb.kas.map(k => {
-    if (k.tipe === "masuk") kasRunning += k.jumlah;
-    else kasRunning -= k.jumlah;
-    return { ...k, saldoBerjalan: kasRunning };
-  });
+  const removedKas = (nextDb.kas || []).filter(k => k.id === kasIdOrRefId || k.referensiId === kasIdOrRefId);
+  removedKas.forEach(k => { nextDb = recordDeletedId(nextDb, k.id); });
+  nextDb.kas = (nextDb.kas || []).filter(k => k.id !== kasIdOrRefId && k.referensiId !== kasIdOrRefId);
 
+  nextDb = recalculateAllLedgers(nextDb);
   saveDatabase(nextDb);
   return nextDb;
 }

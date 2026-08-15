@@ -426,8 +426,8 @@ export function downloadRekeningBelajarPDF(siswa: Siswa, program: ProgramBelajar
 
   // 3. Render Tabel (Start di bawah box)
   const tableStartY = currentY + 40;
-  const headers = ["No", "Tanggal", "Keterangan", "Biaya", "Pembayaran", "Sisa"];
-  const widths = [10, 25, 71, 25, 25, 24];
+  const headers = ["No", "Tanggal", "Keterangan", "Biaya", "Bayar", "Sisa"];
+  const widths = [10, 25, 70, 30, 23, 22];
   const alignments = ["center", "center", "left", "right", "right", "right"];
 
   const rows = ledger.map((item, index) => [
@@ -611,10 +611,10 @@ export function downloadRekeningHonorTutorPDF(tutor: Tutor, ledger: TransaksiHon
 
 // Table starts at 68 (since 3 summary boxes are now at the bottom)
   const headers = ["No", "Tanggal", "Keterangan", "Masuk (+)", "Dicairkan (-)", "Saldo Honor"];
-  const widths = [12, 25, 73, 23, 23, 24];
+  const widths = [12, 25, 70, 30, 22, 22];
   const alignments: ("left" | "right" | "center")[] = ["center", "center", "left", "right", "right", "right"];
 
-  const MAX_LEN = 40; // Silakan sesuaikan batas maksimal karakternya
+  const MAX_LEN = 55; // Silakan sesuaikan batas maksimal karakternya
 
   const rows = ledger.map((item, idx) => [
     String(idx + 1),

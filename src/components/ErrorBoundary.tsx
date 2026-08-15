@@ -30,7 +30,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
   };
 
   private handleClearAndReset = () => {
-    if (window.confirm("Apakah Anda yakin ingin menghapus cache lokal dan memuat ulang? Data di Supabase Cloud tetap aman.")) {
+    if (window.confirm("Apakah Anda yakin ingin menghapus cache lokal dan memuat ulang? Data di Cloud tetap aman.")) {
       try {
         localStorage.removeItem("rumah_belajar_db_v2");
         localStorage.removeItem("rumah_belajar_session");

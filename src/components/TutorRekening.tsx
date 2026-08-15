@@ -33,18 +33,17 @@ export default function TutorRekening({ db, tutorId }: TutorRekeningProps) {
   const currentOwed = getTutorHonorBalance(db, tutorId);
 
   return (
-    <div id="tutor-rekening-container" className="px-2 py-4 pb-20">
+    <div id="tutor-rekening-container" className="px-4 py-4 pb-20">
       
       {/* Financial Summary card */}
-      <div className="bg-gradient-to-br from-blue-400 to-blue-600 text-white p-5 rounded-xl shadow-sm flex flex-col gap-1 mb-5 relative overflow-hidden">
+      <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-5 rounded-3xl shadow-sm flex flex-col gap-1 mb-5 relative overflow-hidden">
         <div className="absolute top-[-20px] right-[-20px] w-24 h-24 bg-white/5 rounded-full" />
         <span className="text-[9.5px] text-indigo-100 uppercase tracking-widest font-bold">Saldo Honor Anda</span>
-        <h2 className="text-2xl font-black font-mono tracking-tight">{formatRupiah(currentOwed)}</h2>
-        
+        <h2 className="text-3xl font-black font-mono tracking-tight">{formatRupiah(currentOwed)}</h2>
       </div>
 
       {/* Tabs */}
-      <div className="grid grid-cols-2 bg-white p-1 rounded-lg border border-slate-100 shadow-2xs mb-5">
+      <div className="grid grid-cols-2 bg-white p-1 rounded-xl border border-slate-100 shadow-2xs mb-5">
         <button
           id="tab-mutasi-honor"
           onClick={() => setSubTab("mutasi")}
@@ -68,9 +67,9 @@ export default function TutorRekening({ db, tutorId }: TutorRekeningProps) {
       {/* 1. MUTASI ACCOUNT TABUNAN */}
       {subTab === "mutasi" && (
         <div className="space-y-3">
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-3 px-2">Riwayat Mutasi Honor</p>
+          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Riwayat Mutasi</p>
           
-          <div className="border border-slate-100 rounded-sm bg-white overflow-x-auto scrollbar-none text-[11px] shadow-3xs">
+          <div className="border border-slate-100 rounded-2xl bg-white overflow-hidden overflow-x-auto scrollbar-none text-[11px] shadow-3xs">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 text-slate-400 font-bold uppercase text-[8.5px] border-b border-slate-100">
@@ -82,7 +81,7 @@ export default function TutorRekening({ db, tutorId }: TutorRekeningProps) {
                 </tr>
               </thead>
               <tbody>
-                {ledger.slice().reverse().map((item) => (
+                {[...ledger].sort((a, b) => (b.tanggal || "").localeCompare(a.tanggal || "")).map((item) => (
                   <tr key={item.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
                     <td className="p-2.5 font-medium font-mono text-slate-500 whitespace-nowrap">{formatTanggalIndo(item.tanggal)}</td>
                     <td className="p-2.5 font-semibold text-slate-700 leading-tight">{item.keterangan}</td>
@@ -105,12 +104,12 @@ export default function TutorRekening({ db, tutorId }: TutorRekeningProps) {
 
       {/* 2. SALARY SLIPS TAB */}
       {subTab === "slips" && (
-        <div className="space-y-3">
-          {slips.map((sl) => (
+        <div className="space-y-3.5">
+          {[...slips].sort((a, b) => (b.tanggal || "").localeCompare(a.tanggal || "")).map((sl) => (
             <div 
               key={sl.id} 
               id={`slip-card-${sl.id}`}
-              className="bg-white p-5 rounded-lg border border-slate-100 shadow-3xs flex items-center justify-between hover:border-brand-300 transition-all"
+              className="bg-white p-4 rounded-2xl border border-slate-100 shadow-3xs flex items-center justify-between hover:border-brand-300 transition-all"
             >
               <div className="min-w-0 pr-3">
                 <div className="flex items-center gap-1.5">
