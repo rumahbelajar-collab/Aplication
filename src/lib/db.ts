@@ -1,19 +1,20 @@
-import { 
-  ProgramBelajar, 
-  Siswa, 
-  Tutor, 
-  RiwayatPertemuan, 
-  TransaksiRekeningSiswa, 
-  PembayaranSiswa, 
-  TransaksiHonorTutor, 
-  SlipGaji, 
+import { supabase } from "./supabase";
+
+import {
+  ProgramBelajar,
+  Siswa,
+  Tutor,
+  RiwayatPertemuan,
+  TransaksiRekeningSiswa,
+  PembayaranSiswa,
+  TransaksiHonorTutor,
+  SlipGaji,
   KasLembaga,
   PemasukanLain,
   LaporanKehadiran,
   JadwalTutor,
   RaportSiswa
 } from "../types";
-import { pushToSupabase } from "./supabase";
 
 export interface Database {
   programs: ProgramBelajar[];
@@ -29,430 +30,94 @@ export interface Database {
   attendanceReports: LaporanKehadiran[];
   schedules: JadwalTutor[];
   raports?: RaportSiswa[];
+
   broadcastMessage?: string;
-  adminPassword?: string;
-  deletedIds?: string[];
+
+  /*
+   * JANGAN simpan password admin
+   * di database JSON seperti versi lama.
+   * Gunakan Supabase Auth.
+   */
+
   lastUpdated?: string;
 }
 
-// FORMATTERS
+const DB_ID = "main_v1";
+
+const DEFAULT_BROADCAST =
+  "📢 PENGUMUMAN TUTOR: Mohon lakukan serah terima uang titipan pembayaran siswa kepada Staf Administrasi dan catat riwayat pertemuan secara tertib. Terima kasih!";
+
+/* =========================================================
+   FORMATTER
+========================================================= */
+
 export function formatRupiah(value: number): string {
-  return "Rp " + new Intl.NumberFormat("id-ID", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  }).format(value);
+  return (
+    "Rp " +
+    new Intl.NumberFormat("id-ID", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(Number(value) || 0)
+  );
 }
 
 const BULAN_INDO = [
-  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-  "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+  "Januari",
+  "Februari",
+  "Maret",
+  "April",
+  "Mei",
+  "Juni",
+  "Juli",
+  "Agustus",
+  "September",
+  "Oktober",
+  "November",
+  "Desember"
 ];
 
 export function formatTanggalIndo(dateStr: string): string {
   if (!dateStr) return "-";
+
   const parts = dateStr.split("-");
+
   if (parts.length !== 3) return dateStr;
-  const year = parts[0];
-  const month = parts[1].padStart(2, "0");
-  const day = parts[2].padStart(2, "0");
-  return `${day}/${month}/${year}`;
+
+  return `${parts[2].padStart(2, "0")}/${parts[1].padStart(
+    2,
+    "0"
+  )}/${parts[0]}`;
 }
 
 export function formatBulanTahun(dateStr: string): string {
   if (!dateStr) return "-";
-  const parts = dateStr.split("-"); // YYYY-MM-DD
+
+  const parts = dateStr.split("-");
+
   if (parts.length >= 2) {
-    const monthIdx = parseInt(parts[1], 10) - 1;
-    return `${BULAN_INDO[monthIdx]} ${parts[0]}`;
+    const monthIndex = Number(parts[1]) - 1;
+
+    return `${BULAN_INDO[monthIndex] || parts[1]} ${parts[0]}`;
   }
+
   return dateStr;
 }
 
 export function getTodayDateString(): string {
-  const d = new Date();
-  const tzOffset = d.getTimezoneOffset() * 60000;
-  return new Date(d.getTime() - tzOffset).toISOString().slice(0, 10);
+  const now = new Date();
+
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
-// STORAGE KEY
-export const DB_STORAGE_KEY = "rumah_belajar_db_v2";
+/* =========================================================
+   EMPTY DATABASE
+========================================================= */
 
-// INITIAL SEED DATA - CLEAN EMPTY SLATE AS REQUESTED BY USER
-const INITIAL_PROGRAMS: ProgramBelajar[] = [];
-const INITIAL_TUTORS: Tutor[] = [];
-const INITIAL_STUDENTS: Siswa[] = [];
-
-export function safeGetItem(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch (e) {
-    console.warn("Storage access denied:", e);
-    return null;
-  }
-}
-
-export function safeSetItem(key: string, value: string): void {
-  try {
-    localStorage.setItem(key, value);
-  } catch (e) {
-    console.warn("Storage access denied:", e);
-  }
-}
-
-// SORT HELPERS
-export function sortById<T extends { id?: string }>(items: T[]): T[] {
-  return [...(items || [])].sort((a, b) => 
-    (a.id || "").localeCompare(b.id || "", undefined, { numeric: true, sensitivity: "base" })
-  );
-}
-
-export function sortByDateDesc<T extends { tanggal?: string; id?: string }>(items: T[]): T[] {
-  return [...(items || [])].sort((a, b) => {
-    const dateComp = (b.tanggal || "").localeCompare(a.tanggal || "");
-    if (dateComp !== 0) return dateComp;
-    return (b.id || "").localeCompare(a.id || "", undefined, { numeric: true, sensitivity: "base" });
-  });
-}
-
-export function sortByDateAsc<T extends { tanggal?: string; id?: string }>(items: T[]): T[] {
-  return [...(items || [])].sort((a, b) => {
-    const dateComp = (a.tanggal || "").localeCompare(b.tanggal || "");
-    if (dateComp !== 0) return dateComp;
-    return (a.id || "").localeCompare(b.id || "", undefined, { numeric: true, sensitivity: "base" });
-  });
-}
-
-export function recalculateAllLedgers(db: Database): Database {
-  const nextDb = { ...db };
-
-  // 1. Recalculate Student Ledger per student sorted chronologically by tanggal (ascending)
-  const studentsMap = new Map<string, TransaksiRekeningSiswa[]>();
-  (nextDb.studentLedger || []).forEach(tx => {
-    if (!tx || !tx.siswaId) return;
-    if (!studentsMap.has(tx.siswaId)) studentsMap.set(tx.siswaId, []);
-    studentsMap.get(tx.siswaId)!.push({ ...tx });
-  });
-
-  const updatedStudentLedger: TransaksiRekeningSiswa[] = [];
-  studentsMap.forEach((txList) => {
-    // Sort chronologically (earliest to latest by date)
-    txList.sort((a, b) => {
-      const dateComp = (a.tanggal || "").localeCompare(b.tanggal || "");
-      if (dateComp !== 0) return dateComp;
-      if (a.tipe !== b.tipe) return a.tipe === "debit" ? -1 : 1;
-      return (a.id || "").localeCompare(b.id || "");
-    });
-
-    let running = 0;
-    txList.forEach(tx => {
-      if (tx.tipe === "debit") {
-        running += tx.jumlah;
-      } else {
-        running -= tx.jumlah;
-      }
-      tx.saldoBerjalan = running;
-      updatedStudentLedger.push(tx);
-    });
-  });
-  nextDb.studentLedger = updatedStudentLedger;
-
-  // 2. Recalculate Tutor Ledger per tutor sorted chronologically by tanggal (ascending)
-  const tutorsMap = new Map<string, TransaksiHonorTutor[]>();
-  (nextDb.tutorLedger || []).forEach(tx => {
-    if (!tx || !tx.tutorId) return;
-    if (!tutorsMap.has(tx.tutorId)) tutorsMap.set(tx.tutorId, []);
-    tutorsMap.get(tx.tutorId)!.push({ ...tx });
-  });
-
-  const updatedTutorLedger: TransaksiHonorTutor[] = [];
-  tutorsMap.forEach((txList) => {
-    // Sort chronologically (earliest to latest by date)
-    txList.sort((a, b) => {
-      const dateComp = (a.tanggal || "").localeCompare(b.tanggal || "");
-      if (dateComp !== 0) return dateComp;
-      if (a.tipe !== b.tipe) return a.tipe === "kredit" ? -1 : 1;
-      return (a.id || "").localeCompare(b.id || "");
-    });
-
-    let running = 0;
-    txList.forEach(tx => {
-      if (tx.tipe === "kredit") {
-        running += tx.jumlah;
-      } else {
-        running -= tx.jumlah;
-      }
-      tx.saldoBerjalan = running;
-      updatedTutorLedger.push(tx);
-    });
-  });
-  nextDb.tutorLedger = updatedTutorLedger;
-
-  // 3. Recalculate Kas Lembaga sorted chronologically by tanggal (ascending)
-  const kasList = (nextDb.kas || []).map(k => ({ ...k }));
-  kasList.sort((a, b) => {
-    const dateComp = (a.tanggal || "").localeCompare(b.tanggal || "");
-    if (dateComp !== 0) return dateComp;
-    if (a.tipe !== b.tipe) return a.tipe === "masuk" ? -1 : 1;
-    return (a.id || "").localeCompare(b.id || "");
-  });
-
-  let kasRunning = 0;
-  nextDb.kas = kasList.map(k => {
-    if (k.tipe === "masuk") {
-      kasRunning += k.jumlah;
-    } else {
-      kasRunning -= k.jumlah;
-    }
-    return { ...k, saldoBerjalan: kasRunning };
-  });
-
-  return nextDb;
-}
-
-export function ensureDatabaseDefaults(parsed: any): Database {
-  if (!parsed || typeof parsed !== "object") {
-    return generateCleanDatabase();
-  }
-
-  const rawDeletedIds = Array.isArray(parsed.deletedIds) ? parsed.deletedIds : [];
-  const deletedSet = new Set<string>(rawDeletedIds);
-
-  const rawStudents = (Array.isArray(parsed.students) ? parsed.students : []).filter((s: any) => s && s.id && !deletedSet.has(s.id));
-  const rawTutors = (Array.isArray(parsed.tutors) ? parsed.tutors : []).filter((t: any) => t && t.id && !deletedSet.has(t.id));
-  const rawPrograms = (Array.isArray(parsed.programs) ? parsed.programs : []).filter((p: any) => p && p.id && !deletedSet.has(p.id));
-  const rawSessions = (Array.isArray(parsed.sessions) ? parsed.sessions : []).filter((s: any) => s && s.id && !deletedSet.has(s.id));
-  const rawPayments = (Array.isArray(parsed.payments) ? parsed.payments : []).filter((p: any) => p && p.id && !deletedSet.has(p.id));
-  const rawSlips = (Array.isArray(parsed.slips) ? parsed.slips : []).filter((s: any) => s && s.id && !deletedSet.has(s.id));
-  const rawOtherIncomes = (Array.isArray(parsed.otherIncomes) ? parsed.otherIncomes : []).filter((o: any) => o && o.id && !deletedSet.has(o.id));
-  const rawAttendanceReports = (Array.isArray(parsed.attendanceReports) ? parsed.attendanceReports : []).filter((a: any) => a && a.id && !deletedSet.has(a.id));
-  const rawRaports = (Array.isArray(parsed.raports) ? parsed.raports : []).filter((r: any) => r && r.id && !deletedSet.has(r.id));
-  const rawSchedules = (Array.isArray(parsed.schedules) ? parsed.schedules : []).filter((sc: any) => sc && sc.id && !deletedSet.has(sc.id));
-
-  // Active entity ID sets to cleanly eliminate orphaned ledger entries
-  const activeSessionIds = new Set(rawSessions.map((s: any) => s.id));
-  const activePaymentIds = new Set(rawPayments.map((p: any) => p.id));
-  const activeSlipIds = new Set(rawSlips.map((s: any) => s.id));
-
-  // Clean studentLedger:
-  // Must not be in deletedSet, must not reference deleted ID, and if it's a session fee or payment, parent entity must exist
-  const rawStudentLedger = (Array.isArray(parsed.studentLedger) ? parsed.studentLedger : []).filter((tx: any) => {
-    if (!tx || !tx.id || deletedSet.has(tx.id)) return false;
-    if (tx.referensiId && deletedSet.has(tx.referensiId)) return false;
-
-    // Check session reference
-    if (tx.referensiId && tx.referensiId.startsWith("RP-") && !activeSessionIds.has(tx.referensiId)) {
-      return false;
-    }
-    if (tx.keterangan && tx.keterangan.includes("[RP-")) {
-      const match = tx.keterangan.match(/\[(RP-[^\]]+)\]/);
-      if (match && match[1] && (deletedSet.has(match[1]) || !activeSessionIds.has(match[1]))) {
-        return false;
-      }
-    }
-    // Check payment reference
-    if (tx.referensiId && tx.referensiId.startsWith("BYR-") && !activePaymentIds.has(tx.referensiId)) {
-      return false;
-    }
-    return true;
-  });
-
-  // Clean tutorLedger:
-  // Must not be in deletedSet, must not reference deleted ID, and if it's a session honor or salary slip, parent entity must exist
-  const rawTutorLedger = (Array.isArray(parsed.tutorLedger) ? parsed.tutorLedger : []).filter((tx: any) => {
-    if (!tx || !tx.id || deletedSet.has(tx.id)) return false;
-    if (tx.referensiId && deletedSet.has(tx.referensiId)) return false;
-
-    // Check session reference
-    if (tx.referensiId && tx.referensiId.startsWith("RP-") && !activeSessionIds.has(tx.referensiId)) {
-      return false;
-    }
-    if (tx.keterangan && tx.keterangan.includes("[RP-")) {
-      const match = tx.keterangan.match(/\[(RP-[^\]]+)\]/);
-      if (match && match[1] && (deletedSet.has(match[1]) || !activeSessionIds.has(match[1]))) {
-        return false;
-      }
-    }
-    // Check salary slip reference
-    if (tx.referensiId && tx.referensiId.startsWith("SLP-") && !activeSlipIds.has(tx.referensiId)) {
-      return false;
-    }
-    return true;
-  });
-
-  // Clean kas:
-  const rawKas = (Array.isArray(parsed.kas) ? parsed.kas : []).filter((k: any) => {
-    if (!k || !k.id || deletedSet.has(k.id)) return false;
-    if (k.referensiId && deletedSet.has(k.referensiId)) return false;
-    return true;
-  });
-
-  const rawDb: Database = {
-    programs: sortById(rawPrograms),
-    students: sortById(rawStudents),
-    tutors: sortById(rawTutors),
-    sessions: sortByDateDesc(rawSessions),
-    studentLedger: rawStudentLedger,
-    payments: sortByDateDesc(rawPayments),
-    tutorLedger: rawTutorLedger,
-    slips: sortByDateDesc(rawSlips),
-    kas: rawKas,
-    otherIncomes: sortByDateDesc(rawOtherIncomes),
-    attendanceReports: sortByDateDesc(rawAttendanceReports),
-    raports: sortByDateDesc(rawRaports),
-    schedules: rawSchedules,
-    broadcastMessage: parsed.broadcastMessage ?? "📢 PENGUMUMAN TUTOR: Mohon lakukan serah terima uang titipan pembayaran siswa kepada Staf Administrasi dan catat riwayat pertemuan secara tertib. Terima kasih!",
-    adminPassword: parsed.adminPassword ?? "admin123",
-    deletedIds: Array.from(deletedSet),
-    lastUpdated: parsed.lastUpdated || new Date().toISOString()
-  };
-
-  return recalculateAllLedgers(rawDb);
-}
-
-export function recordDeletedId(db: Database, id: string): Database {
-  if (!id) return db;
-  const currentDeleted = Array.isArray(db.deletedIds) ? db.deletedIds : [];
-  if (!currentDeleted.includes(id)) {
-    return {
-      ...db,
-      deletedIds: [...currentDeleted, id],
-      lastUpdated: new Date().toISOString()
-    };
-  }
-  return db;
-}
-
-export function mergeDatabases(localDb: Database, remoteDb: Database): Database {
-  const local = ensureDatabaseDefaults(localDb);
-  const remote = ensureDatabaseDefaults(remoteDb);
-
-  // 1. Merge all deleted IDs (Tombstones) to respect intentional deletions across all devices
-  const deletedSet = new Set<string>([
-    ...(local.deletedIds || []),
-    ...(remote.deletedIds || [])
-  ]);
-
-  const mergeArrayById = <T extends { id: string }>(
-    localArr: T[],
-    remoteArr: T[],
-    resolveConflict?: (l: T, r: T) => T
-  ): T[] => {
-    const map = new Map<string, T>();
-    (remoteArr || []).forEach(item => {
-      if (item && item.id && !deletedSet.has(item.id)) {
-        map.set(item.id, item);
-      }
-    });
-    (localArr || []).forEach(item => {
-      if (item && item.id && !deletedSet.has(item.id)) {
-        if (map.has(item.id)) {
-          const existingRemote = map.get(item.id)!;
-          if (resolveConflict) {
-            map.set(item.id, resolveConflict(item, existingRemote));
-          } else {
-            map.set(item.id, { ...existingRemote, ...item });
-          }
-        } else {
-          map.set(item.id, item);
-        }
-      }
-    });
-    return Array.from(map.values());
-  };
-
-  const attendanceReports = mergeArrayById(
-    local.attendanceReports || [],
-    remote.attendanceReports || [],
-    (loc, rem) => {
-      if (rem.status !== "pending" && loc.status === "pending") return rem;
-      if (loc.status !== "pending" && rem.status === "pending") return loc;
-      return { ...rem, ...loc };
-    }
-  );
-
-  const mergedTutorsMap = new Map<string, Tutor>();
-  (remote.tutors || []).forEach(t => {
-    if (t && t.id && !deletedSet.has(t.id)) mergedTutorsMap.set(t.id, t);
-  });
-  (local.tutors || []).forEach(t => {
-    if (!t || !t.id || deletedSet.has(t.id)) return;
-    const existingKey = Array.from(mergedTutorsMap.keys()).find(
-      k => k === t.id || (mergedTutorsMap.get(k)?.idLogin || "").toLowerCase() === (t.idLogin || "").toLowerCase()
-    );
-    if (existingKey) {
-      const remoteTutor = mergedTutorsMap.get(existingKey)!;
-      const mergedPassword = (t.password && t.password !== "123")
-        ? t.password
-        : (remoteTutor.password || t.password || "123");
-      mergedTutorsMap.set(existingKey, {
-        ...remoteTutor,
-        ...t,
-        password: mergedPassword
-      });
-    } else {
-      mergedTutorsMap.set(t.id, t);
-    }
-  });
-
-  const resolvedAdminPassword = (remote.adminPassword && remote.adminPassword !== "admin123")
-    ? remote.adminPassword
-    : ((local.adminPassword && local.adminPassword !== "admin123") ? local.adminPassword : (remote.adminPassword || local.adminPassword || "admin123"));
-
-  const mergedDb: Database = {
-    programs: sortById(mergeArrayById(local.programs || [], remote.programs || [])),
-    students: sortById(mergeArrayById(local.students || [], remote.students || [])),
-    tutors: sortById(Array.from(mergedTutorsMap.values())),
-    sessions: sortByDateDesc(mergeArrayById(local.sessions || [], remote.sessions || [])),
-    studentLedger: mergeArrayById(local.studentLedger || [], remote.studentLedger || []),
-    payments: sortByDateDesc(mergeArrayById(local.payments || [], remote.payments || [])),
-    tutorLedger: mergeArrayById(local.tutorLedger || [], remote.tutorLedger || []),
-    slips: sortByDateDesc(mergeArrayById(local.slips || [], remote.slips || [])),
-    kas: mergeArrayById(local.kas || [], remote.kas || []),
-    otherIncomes: sortByDateDesc(mergeArrayById(local.otherIncomes || [], remote.otherIncomes || [])),
-    attendanceReports: sortByDateDesc(attendanceReports),
-    schedules: mergeArrayById(local.schedules || [], remote.schedules || []),
-    raports: sortByDateDesc(mergeArrayById(local.raports || [], remote.raports || [])),
-    broadcastMessage: remote.broadcastMessage || local.broadcastMessage,
-    adminPassword: resolvedAdminPassword,
-    deletedIds: Array.from(deletedSet),
-    lastUpdated: new Date().toISOString()
-  };
-
-  return recalculateAllLedgers(mergedDb);
-}
-
-export function getDatabase(): Database {
-  try {
-    const raw = safeGetItem(DB_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      return ensureDatabaseDefaults(parsed);
-    }
-  } catch (e) {
-    console.error("Error loading database, resetting", e);
-  }
-  
-  // Create Clean Empty Database locally without overwriting Supabase
-  const db = generateCleanDatabase();
-  safeSetItem(DB_STORAGE_KEY, JSON.stringify(db));
-  return db;
-}
-
-export function generateUniqueId(prefix: string): string {
-  const timeStr = Date.now().toString().slice(-6);
-  const randNum = Math.floor(Math.random() * 1000).toString().padStart(3, "0");
-  return `${prefix}-${timeStr}${randNum}`;
-}
-
-export function saveDatabase(db: Database): void {
-  const sanitized = ensureDatabaseDefaults(db);
-  safeSetItem(DB_STORAGE_KEY, JSON.stringify(sanitized));
-  pushToSupabase(sanitized).catch(err => {
-    console.error("Failed background sync to Supabase:", err);
-  });
-}
-
-function generateCleanDatabase(): Database {
+export function generateCleanDatabase(): Database {
   return {
     programs: [],
     students: [],
@@ -465,940 +130,592 @@ function generateCleanDatabase(): Database {
     kas: [],
     otherIncomes: [],
     attendanceReports: [],
-    raports: [],
     schedules: [],
-    broadcastMessage: "📢 PENGUMUMAN TUTOR: Mohon lakukan serah terima uang titipan pembayaran siswa kepada Staf Administrasi dan catat riwayat pertemuan secara tertib. Terima kasih!",
-    adminPassword: "admin123"
-  };
-}
-
-export function clearPrototypeData(currentDb?: Database): Database {
-  const cleanDb: Database = {
-    programs: [],
-    students: [],
-    tutors: [],
-    sessions: [],
-    studentLedger: [],
-    payments: [],
-    tutorLedger: [],
-    slips: [],
-    kas: [],
-    otherIncomes: [],
-    attendanceReports: [],
     raports: [],
-    schedules: [],
-    broadcastMessage: currentDb?.broadcastMessage || "📢 PENGUMUMAN TUTOR: Mohon lakukan serah terima uang titipan pembayaran siswa kepada Staf Administrasi dan catat riwayat pertemuan secara tertib. Terima kasih!",
-    adminPassword: currentDb?.adminPassword || "admin123"
+    broadcastMessage: DEFAULT_BROADCAST,
+    lastUpdated: new Date().toISOString()
   };
-  saveDatabase(cleanDb);
-  return cleanDb;
 }
 
-// TRANSACTION HANDLERS (AUTOMATIONS)
-// These ensure that recording any operation maintains ledger consistency.
+/* =========================================================
+   NORMALIZE DATABASE
+========================================================= */
 
-// 1. Record New Session
-export function addSessionTransaction(
-  db: Database,
-  data: {
-    tanggal: string;
-    siswaId: string;
-    tutorId: string;
-    programId: string;
-    catatan?: string;
-  }
+export function ensureDatabaseDefaults(
+  input: Partial<Database> | null | undefined
 ): Database {
-  const nextDb = { ...db };
-  const student = nextDb.students.find(s => s.id === data.siswaId);
-  const tutor = nextDb.tutors.find(t => t.id === data.tutorId);
-  const program = nextDb.programs.find(p => p.id === data.programId);
+  const data = input || {};
 
-  if (!student || !tutor || !program) {
-    console.error("Failed to add session transaction: missing student, tutor, or program", { student, tutor, program });
-    return db;
-  }
-
-  // Jika programId siswa masih kosong, kaitkan siswa tersebut ke program ini secara otomatis
-  if (!student.programId || student.programId === "") {
-    nextDb.students = nextDb.students.map(s =>
-      s.id === student.id ? { ...s, programId: program.id } : s
-    );
-  }
-
-  // Generate ID
-  const newId = generateUniqueId("RP");
-  
-  // Create Riwayat Pertemuan
-  const newSession: RiwayatPertemuan = {
-    id: newId,
-    tanggal: data.tanggal,
-    siswaId: student.id,
-    siswaNama: student.nama,
-    tutorId: tutor.id,
-    tutorNama: tutor.nama,
-    programId: program.id,
-    programNama: program.nama,
-    tarifSiswaSnapshot: program.tarifSiswa,
-    honorTutorSnapshot: program.honorTutor,
-    catatan: data.catatan || `Sesi pembelajaran ${program.nama}`
+  return {
+    programs: Array.isArray(data.programs) ? data.programs : [],
+    students: Array.isArray(data.students) ? data.students : [],
+    tutors: Array.isArray(data.tutors) ? data.tutors : [],
+    sessions: Array.isArray(data.sessions) ? data.sessions : [],
+    studentLedger: Array.isArray(data.studentLedger)
+      ? data.studentLedger
+      : [],
+    payments: Array.isArray(data.payments) ? data.payments : [],
+    tutorLedger: Array.isArray(data.tutorLedger)
+      ? data.tutorLedger
+      : [],
+    slips: Array.isArray(data.slips) ? data.slips : [],
+    kas: Array.isArray(data.kas) ? data.kas : [],
+    otherIncomes: Array.isArray(data.otherIncomes)
+      ? data.otherIncomes
+      : [],
+    attendanceReports: Array.isArray(data.attendanceReports)
+      ? data.attendanceReports
+      : [],
+    schedules: Array.isArray(data.schedules)
+      ? data.schedules
+      : [],
+    raports: Array.isArray(data.raports)
+      ? data.raports
+      : [],
+    broadcastMessage:
+      data.broadcastMessage || DEFAULT_BROADCAST,
+    lastUpdated:
+      data.lastUpdated || new Date().toISOString()
   };
-  nextDb.sessions = [newSession, ...nextDb.sessions]; // Newest first
-
-  // 1. Update Student Ledger (Debit = Charge)
-  const studentTxList = nextDb.studentLedger.filter(tx => tx.siswaId === student.id);
-  const studentCurrentSaldo = studentTxList.length > 0 ? studentTxList[studentTxList.length - 1].saldoBerjalan : 0;
-  const newStudentTx: TransaksiRekeningSiswa = {
-    id: generateUniqueId("TXS"),
-    tanggal: data.tanggal,
-    siswaId: student.id,
-    tipe: "debit",
-    keterangan: `Riwayat Pertemuan [${newId}] - ${program.nama}`,
-    jumlah: program.tarifSiswa,
-    saldoBerjalan: studentCurrentSaldo + program.tarifSiswa,
-    referensiId: newId
-  };
-  nextDb.studentLedger = [...nextDb.studentLedger, newStudentTx]; // Appended chronologically
-
-  // 2. Update Tutor Ledger (Kredit = Earned honor)
-  const tutorTxList = nextDb.tutorLedger.filter(tx => tx.tutorId === tutor.id);
-  const tutorCurrentSaldo = tutorTxList.length > 0 ? tutorTxList[tutorTxList.length - 1].saldoBerjalan : 0;
-  const newTutorTx: TransaksiHonorTutor = {
-    id: generateUniqueId("TXT"),
-    tanggal: data.tanggal,
-    tutorId: tutor.id,
-    tipe: "kredit",
-    keterangan: `Riwayat Pertemuan [${newId}] - Siswa: ${student.nama} - ${program.nama}`,
-    jumlah: program.honorTutor,
-    saldoBerjalan: tutorCurrentSaldo + program.honorTutor,
-    referensiId: newId
-  };
-  nextDb.tutorLedger = [...nextDb.tutorLedger, newTutorTx]; // Appended chronologically
-
-  saveDatabase(nextDb);
-  return nextDb;
 }
 
-// 2. Record Student Payment
-export function addPaymentTransaction(
-  db: Database,
-  data: {
-    tanggal: string;
-    siswaId: string;
-    jumlah: number;
-    metode: "admin" | "tutor";
-    tutorId?: string;
-  }
-): Database {
-  const nextDb = { ...db };
-  const student = nextDb.students.find(s => s.id === data.siswaId)!;
-  const tutor = data.tutorId ? nextDb.tutors.find(t => t.id === data.tutorId) : undefined;
+/* =========================================================
+   SORT
+========================================================= */
 
-  const payId = generateUniqueId("PAY");
-  
-  const newPayment: PembayaranSiswa = {
-    id: payId,
-    tanggal: data.tanggal,
-    siswaId: student.id,
-    siswaNama: student.nama,
-    jumlah: data.jumlah,
-    metode: data.metode,
-    tutorId: data.tutorId,
-    tutorNama: tutor ? tutor.nama : undefined,
-    statusTitipan: data.metode === "tutor" ? "pending" : "diserahkan",
-    tanggalSerah: undefined
-  };
-  nextDb.payments = [newPayment, ...nextDb.payments]; // Newest first
-
-  // Update Student Ledger (Kredit = Reduces outstanding bill) IF paid directly to Admin
-  if (data.metode === "admin") {
-    const studentTxList = nextDb.studentLedger.filter(tx => tx.siswaId === student.id);
-    const studentCurrentSaldo = studentTxList.length > 0 ? studentTxList[studentTxList.length - 1].saldoBerjalan : 0;
-    const newStudentTx: TransaksiRekeningSiswa = {
-      id: generateUniqueId("TXS"),
-      tanggal: data.tanggal,
-      siswaId: student.id,
-      tipe: "kredit",
-      keterangan: "Pembayaran langsung ke Admin",
-      jumlah: data.jumlah,
-      saldoBerjalan: studentCurrentSaldo - data.jumlah,
-      referensiId: payId
-    };
-    nextDb.studentLedger = [...nextDb.studentLedger, newStudentTx];
-  }
-
-  // If directly paid to Admin: immediately enters Kas Lembaga
-  if (data.metode === "admin") {
-    const prevKasSaldo = nextDb.kas.length > 0 ? nextDb.kas[nextDb.kas.length - 1].saldoBerjalan : 0;
-    const newKasTx: KasLembaga = {
-      id: generateUniqueId("KAS"),
-      tanggal: data.tanggal,
-      tipe: "masuk",
-      keterangan: `Pembayaran Siswa [${payId}] - ${student.nama}`,
-      jumlah: data.jumlah,
-      saldoBerjalan: prevKasSaldo + data.jumlah,
-      referensiId: payId
-    };
-    nextDb.kas = [...nextDb.kas, newKasTx];
-  }
-
-  saveDatabase(nextDb);
-  return nextDb;
-}
-
-// 3. Confirm Tutor Handing Over Deposits
-export function confirmTutorDepositHandover(
-  db: Database,
-  paymentId: string,
-  tanggalSerah: string
-): Database {
-  const paymentIdx = db.payments.findIndex(p => p.id === paymentId);
-  if (paymentIdx === -1) return db;
-
-  const payment = db.payments[paymentIdx];
-  if (payment.metode !== "tutor" || payment.statusTitipan === "diserahkan") return db;
-
-  // Update payment status
-  const updatedPayment = {
-    ...payment,
-    statusTitipan: "diserahkan" as const,
-    tanggalSerah: tanggalSerah
-  };
-
-  const nextDb = {
-    ...db,
-    payments: [...db.payments],
-    studentLedger: [...db.studentLedger],
-    kas: [...db.kas]
-  };
-  
-  nextDb.payments[paymentIdx] = updatedPayment;
-
-  // Update Student Ledger right now! (Kredit = Reduces outstanding bill)
-  const studentTxList = nextDb.studentLedger.filter(tx => tx.siswaId === payment.siswaId);
-  const studentCurrentSaldo = studentTxList.length > 0 ? studentTxList[studentTxList.length - 1].saldoBerjalan : 0;
-  const newStudentTx: TransaksiRekeningSiswa = {
-    id: generateUniqueId("TXS"),
-    tanggal: tanggalSerah,
-    siswaId: payment.siswaId,
-    tipe: "kredit",
-    keterangan: `Penerimaan Pembayaran via Tutor: ${payment.tutorNama}`,
-    jumlah: payment.jumlah,
-    saldoBerjalan: studentCurrentSaldo - payment.jumlah,
-    referensiId: payment.id
-  };
-  nextDb.studentLedger.push(newStudentTx);
-
-  // Insert into General Kas Lembaga
-  const prevKasSaldo = nextDb.kas.length > 0 ? nextDb.kas[nextDb.kas.length - 1].saldoBerjalan : 0;
-  const newKasTx: KasLembaga = {
-    id: generateUniqueId("KAS"),
-    tanggal: tanggalSerah,
-    tipe: "masuk",
-    keterangan: `Penerimaan Titipan Tutor [${payment.id}] - ${payment.tutorNama} (Siswa: ${payment.siswaNama})`,
-    jumlah: payment.jumlah,
-    saldoBerjalan: prevKasSaldo + payment.jumlah,
-    referensiId: payment.id
-  };
-  nextDb.kas.push(newKasTx);
-
-  saveDatabase(nextDb);
-  return nextDb;
-}
-
-// 3b. Undo / Cancel Tutor Deposit Handover Verification
-export function undoTutorDepositHandover(
-  db: Database,
-  paymentId: string
-): Database {
-  const paymentIdx = db.payments.findIndex(p => p.id === paymentId);
-  if (paymentIdx === -1) return db;
-
-  const payment = db.payments[paymentIdx];
-  if (payment.metode !== "tutor" || payment.statusTitipan !== "diserahkan") return db;
-
-  const nextDb = {
-    ...db,
-    payments: [...db.payments],
-    studentLedger: [...db.studentLedger],
-    kas: [...db.kas]
-  };
-
-  // Revert payment status back to pending
-  nextDb.payments[paymentIdx] = {
-    ...payment,
-    statusTitipan: "pending" as const,
-    tanggalSerah: undefined
-  };
-
-  // Remove corresponding student ledger entry created during handover
-  nextDb.studentLedger = nextDb.studentLedger.filter(
-    tx => tx.referensiId !== paymentId
-  );
-
-  // Recalculate Student Ledger running balance for affected student
-  let studentRunning = 0;
-  nextDb.studentLedger = nextDb.studentLedger.map(tx => {
-    if (tx.siswaId === payment.siswaId) {
-      if (tx.tipe === "debit") {
-        studentRunning += tx.jumlah;
-      } else {
-        studentRunning -= tx.jumlah;
+export function sortById<T extends { id?: string }>(
+  items: T[]
+): T[] {
+  return [...(items || [])].sort((a, b) =>
+    (a.id || "").localeCompare(
+      b.id || "",
+      undefined,
+      {
+        numeric: true,
+        sensitivity: "base"
       }
-      return { ...tx, saldoBerjalan: studentRunning };
-    }
-    return tx;
-  });
-
-  // Remove corresponding Kas entry created during handover
-  nextDb.kas = nextDb.kas.filter(
-    k => k.referensiId !== paymentId
+    )
   );
+}
 
-  // Recalculate Kas running balance
-  let kasRunning = 0;
-  nextDb.kas = nextDb.kas.map(k => {
-    if (k.tipe === "masuk") {
-      kasRunning += k.jumlah;
-    } else {
-      kasRunning -= k.jumlah;
+export function sortByDateDesc<
+  T extends { tanggal?: string; id?: string }
+>(items: T[]): T[] {
+  return [...(items || [])].sort((a, b) => {
+    const dateCompare = (b.tanggal || "").localeCompare(
+      a.tanggal || ""
+    );
+
+    if (dateCompare !== 0) {
+      return dateCompare;
     }
-    return { ...k, saldoBerjalan: kasRunning };
+
+    return (b.id || "").localeCompare(
+      a.id || "",
+      undefined,
+      {
+        numeric: true,
+        sensitivity: "base"
+      }
+    );
+  });
+}
+
+export function sortByDateAsc<
+  T extends { tanggal?: string; id?: string }
+>(items: T[]): T[] {
+  return [...(items || [])].sort((a, b) => {
+    const dateCompare = (a.tanggal || "").localeCompare(
+      b.tanggal || ""
+    );
+
+    if (dateCompare !== 0) {
+      return dateCompare;
+    }
+
+    return (a.id || "").localeCompare(
+      b.id || "",
+      undefined,
+      {
+        numeric: true,
+        sensitivity: "base"
+      }
+    );
+  });
+}
+
+/* =========================================================
+   READ DATABASE FROM SUPABASE
+========================================================= */
+
+export async function getDatabase(): Promise<Database> {
+  const { data, error } = await supabase
+    .from("rumah_belajar_db")
+    .select("data, updated_at")
+    .eq("id", DB_ID)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Gagal mengambil database Supabase:", error);
+    throw error;
+  }
+
+  if (!data) {
+    return generateCleanDatabase();
+  }
+
+  return ensureDatabaseDefaults({
+    ...(data.data || {}),
+    lastUpdated: data.updated_at
+  });
+}
+
+/* =========================================================
+   SAVE DATABASE TO SUPABASE
+========================================================= */
+
+export async function saveDatabase(
+  database: Database
+): Promise<Database> {
+  const cleanDatabase = ensureDatabaseDefaults(database);
+
+  const updatedAt = new Date().toISOString();
+
+  const payload = {
+    ...cleanDatabase,
+    lastUpdated: updatedAt
+  };
+
+  const { data, error } = await supabase
+    .from("rumah_belajar_db")
+    .upsert(
+      {
+        id: DB_ID,
+        data: payload,
+        updated_at: updatedAt
+      },
+      {
+        onConflict: "id"
+      }
+    )
+    .select("data, updated_at")
+    .single();
+
+  if (error) {
+    console.error(
+      "Gagal menyimpan database ke Supabase:",
+      error
+    );
+
+    throw error;
+  }
+
+  return ensureDatabaseDefaults({
+    ...(data?.data || payload),
+    lastUpdated: data?.updated_at || updatedAt
+  });
+}
+
+/* =========================================================
+   REALTIME
+========================================================= */
+
+export function subscribeDatabase(
+  onChange: (database: Database) => void,
+  onError?: (error: Error) => void
+) {
+  const channel = supabase
+    .channel("rumah-belajar-database")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "rumah_belajar_db",
+        filter: `id=eq.${DB_ID}`
+      },
+      payload => {
+        try {
+          if (!payload.new) return;
+
+          const row = payload.new as {
+            data?: Partial<Database>;
+            updated_at?: string;
+          };
+
+          const database = ensureDatabaseDefaults({
+            ...(row.data || {}),
+            lastUpdated: row.updated_at
+          });
+
+          onChange(database);
+        } catch (error) {
+          console.error(
+            "Gagal memproses realtime database:",
+            error
+          );
+
+          onError?.(
+            error instanceof Error
+              ? error
+              : new Error("Realtime database error")
+          );
+        }
+      }
+    )
+    .subscribe(status => {
+      console.log(
+        "[Supabase Realtime]",
+        status
+      );
+    });
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}
+
+/* =========================================================
+   UNIQUE ID
+========================================================= */
+
+export function generateUniqueId(
+  prefix: string
+): string {
+  const timestamp = Date.now()
+    .toString(36)
+    .toUpperCase();
+
+  const random = Math.random()
+    .toString(36)
+    .substring(2, 7)
+    .toUpperCase();
+
+  return `${prefix}-${timestamp}-${random}`;
+}
+
+/* =========================================================
+   BALANCE CALCULATION
+========================================================= */
+
+export function recalculateAllLedgers(
+  database: Database
+): Database {
+  const db = ensureDatabaseDefaults(database);
+
+  /* STUDENT */
+
+  const students = new Map<
+    string,
+    TransaksiRekeningSiswa[]
+  >();
+
+  db.studentLedger.forEach(tx => {
+    if (!tx?.siswaId) return;
+
+    if (!students.has(tx.siswaId)) {
+      students.set(tx.siswaId, []);
+    }
+
+    students.get(tx.siswaId)!.push({
+      ...tx
+    });
   });
 
-  saveDatabase(nextDb);
-  return nextDb;
+  const studentLedger: TransaksiRekeningSiswa[] = [];
+
+  students.forEach(list => {
+    list.sort((a, b) => {
+      const date = (a.tanggal || "").localeCompare(
+        b.tanggal || ""
+      );
+
+      if (date !== 0) return date;
+
+      return (a.id || "").localeCompare(
+        b.id || "",
+        undefined,
+        {
+          numeric: true
+        }
+      );
+    });
+
+    let saldo = 0;
+
+    list.forEach(tx => {
+      if (tx.tipe === "debit") {
+        saldo += Number(tx.jumlah) || 0;
+      } else {
+        saldo -= Number(tx.jumlah) || 0;
+      }
+
+      studentLedger.push({
+        ...tx,
+        saldoBerjalan: saldo
+      });
+    });
+  });
+
+  /* TUTOR */
+
+  const tutors = new Map<
+    string,
+    TransaksiHonorTutor[]
+  >();
+
+  db.tutorLedger.forEach(tx => {
+    if (!tx?.tutorId) return;
+
+    if (!tutors.has(tx.tutorId)) {
+      tutors.set(tx.tutorId, []);
+    }
+
+    tutors.get(tx.tutorId)!.push({
+      ...tx
+    });
+  });
+
+  const tutorLedger: TransaksiHonorTutor[] = [];
+
+  tutors.forEach(list => {
+    list.sort((a, b) => {
+      const date = (a.tanggal || "").localeCompare(
+        b.tanggal || ""
+      );
+
+      if (date !== 0) return date;
+
+      return (a.id || "").localeCompare(
+        b.id || "",
+        undefined,
+        {
+          numeric: true
+        }
+      );
+    });
+
+    let saldo = 0;
+
+    list.forEach(tx => {
+      if (tx.tipe === "kredit") {
+        saldo += Number(tx.jumlah) || 0;
+      } else {
+        saldo -= Number(tx.jumlah) || 0;
+      }
+
+      tutorLedger.push({
+        ...tx,
+        saldoBerjalan: saldo
+      });
+    });
+  });
+
+  /* KAS */
+
+  const kas = [...db.kas].sort((a, b) => {
+    const date = (a.tanggal || "").localeCompare(
+      b.tanggal || ""
+    );
+
+    if (date !== 0) return date;
+
+    return (a.id || "").localeCompare(
+      b.id || "",
+      undefined,
+      {
+        numeric: true
+      }
+    );
+  });
+
+  let kasSaldo = 0;
+
+  const calculatedKas = kas.map(item => {
+    if (item.tipe === "masuk") {
+      kasSaldo += Number(item.jumlah) || 0;
+    } else {
+      kasSaldo -= Number(item.jumlah) || 0;
+    }
+
+    return {
+      ...item,
+      saldoBerjalan: kasSaldo
+    };
+  });
+
+  return {
+    ...db,
+    studentLedger,
+    tutorLedger,
+    kas: calculatedKas
+  };
 }
 
-// 4. Pay Tutor Honor & Generate Slip Gaji
-export function payTutorHonorTransaction(
+/* =========================================================
+   QUICK ACCESS
+========================================================= */
+
+export function getStudentBalance(
   db: Database,
-  data: {
-    tanggal: string;
-    tutorId: string;
-    jumlah: number; // Total honor kotor yang diselesaikan dari saldo
-    periode: string;
-    catatan?: string;
-    potongan?: number; // Potongan honor jika ada
-    keteranganPotongan?: string; // Alasan potongan
-  }
-): Database {
-  const nextDb = { ...db };
-  const tutor = nextDb.tutors.find(t => t.id === data.tutorId)!;
-
-  const slipId = generateUniqueId("SG");
-  const potonganAmt = data.potongan || 0;
-  const netPaid = Math.max(0, data.jumlah - potonganAmt);
-  
-  const newSlip: SlipGaji = {
-    id: slipId,
-    tanggal: data.tanggal,
-    tutorId: tutor.id,
-    tutorNama: tutor.nama,
-    jumlah: netPaid, // Net paid (bersih)
-    periode: data.periode,
-    catatan: data.catatan || "Pembayaran Honor Tutor",
-    potongan: potonganAmt,
-    keteranganPotongan: data.keteranganPotongan || "",
-    totalHonor: data.jumlah // Gross (kotor)
-  };
-  nextDb.slips = [newSlip, ...nextDb.slips];
-
-  // Update Tutor Ledger (Debit = Decreases outstanding honor owed by Gross Amount)
-  const tutorTxList = nextDb.tutorLedger.filter(tx => tx.tutorId === tutor.id);
-  const tutorCurrentSaldo = tutorTxList.length > 0 ? tutorTxList[tutorTxList.length - 1].saldoBerjalan : 0;
-  const newTutorTx: TransaksiHonorTutor = {
-    id: generateUniqueId("TXT"),
-    tanggal: data.tanggal,
-    tutorId: tutor.id,
-    tipe: "debit",
-    keterangan: potonganAmt > 0 
-      ? `Pembayaran Honor [${slipId}] (Potongan: ${formatRupiah(potonganAmt)}) - Periode ${data.periode}`
-      : `Pembayaran Honor [${slipId}] - Periode ${data.periode}`,
-    jumlah: data.jumlah, // Mengurangi saldo terutang sebesar Gross
-    saldoBerjalan: tutorCurrentSaldo - data.jumlah,
-    referensiId: slipId
-  };
-  nextDb.tutorLedger = [...nextDb.tutorLedger, newTutorTx];
-
-  // Outflow from General Kas (The full gross amount leaves the kas because any deductions do not enter or remain in the institutional cash)
-  const prevKasSaldo = nextDb.kas.length > 0 ? nextDb.kas[nextDb.kas.length - 1].saldoBerjalan : 0;
-  const newKasTx: KasLembaga = {
-    id: generateUniqueId("KAS"),
-    tanggal: data.tanggal,
-    tipe: "keluar",
-    keterangan: potonganAmt > 0
-      ? `Pembayaran Honor Tutor [${slipId}] - ${tutor.nama} (Bersih: ${formatRupiah(netPaid)}, Potongan: ${formatRupiah(potonganAmt)})`
-      : `Pembayaran Honor Tutor [${slipId}] - ${tutor.nama}`,
-    jumlah: data.jumlah, // Mengurangi kas sebesar GROSS (potongan tidak masuk kas lembaga)
-    saldoBerjalan: prevKasSaldo - data.jumlah,
-    referensiId: slipId
-  };
-  nextDb.kas = [...nextDb.kas, newKasTx];
-
-  saveDatabase(nextDb);
-  return nextDb;
+  studentId: string
+): number {
+  return db.studentLedger
+    .filter(tx => tx.siswaId === studentId)
+    .reduce((saldo, tx) => {
+      return tx.tipe === "debit"
+        ? saldo + tx.jumlah
+        : saldo - tx.jumlah;
+    }, 0);
 }
 
-// 5. Add Custom General Outflow Expense (Pengeluaran Operasional / Pengeluaran Lain)
-export function addGeneralExpenseTransaction(
+export function getTutorHonorBalance(
   db: Database,
-  data: {
-    tanggal: string;
-    keterangan: string;
-    jumlah: number;
-  }
-): Database {
-  const nextDb = { ...db };
-  const expId = generateUniqueId("EXP");
-  
-  const prevKasSaldo = nextDb.kas.length > 0 ? nextDb.kas[nextDb.kas.length - 1].saldoBerjalan : 0;
-  const newKasTx: KasLembaga = {
-    id: generateUniqueId("KAS"),
-    tanggal: data.tanggal,
-    tipe: "keluar",
-    keterangan: `Pengeluaran Operasional [${expId}] - ${data.keterangan}`,
-    jumlah: data.jumlah,
-    saldoBerjalan: prevKasSaldo - data.jumlah,
-    referensiId: expId
-  };
-  nextDb.kas = [...nextDb.kas, newKasTx];
-
-  saveDatabase(nextDb);
-  return nextDb;
+  tutorId: string
+): number {
+  return db.tutorLedger
+    .filter(tx => tx.tutorId === tutorId)
+    .reduce((saldo, tx) => {
+      return tx.tipe === "kredit"
+        ? saldo + tx.jumlah
+        : saldo - tx.jumlah;
+    }, 0);
 }
 
-// CALCULATION BALANCES QUICK ACCESSORS
-export function getStudentBalance(db: Database, studentId: string): number {
-  const list = db.studentLedger.filter(tx => tx.siswaId === studentId);
-  return list.length > 0 ? list[list.length - 1].saldoBerjalan : 0;
-}
-
-export function getTutorHonorBalance(db: Database, tutorId: string): number {
-  const list = db.tutorLedger.filter(tx => tx.tutorId === tutorId);
-  return list.length > 0 ? list[list.length - 1].saldoBerjalan : 0;
-}
-
-export function getTutorDepositBalance(db: Database, tutorId: string): number {
-  // Total pending payments on hand for this tutor
+export function getTutorDepositBalance(
+  db: Database,
+  tutorId: string
+): number {
   return db.payments
-    .filter(p => p.metode === "tutor" && p.tutorId === tutorId && p.statusTitipan === "pending")
-    .reduce((sum, p) => sum + p.jumlah, 0);
+    .filter(
+      p =>
+        p.metode === "tutor" &&
+        p.tutorId === tutorId &&
+        p.statusTitipan === "pending"
+    )
+    .reduce(
+      (total, payment) =>
+        total + (Number(payment.jumlah) || 0),
+      0
+    );
 }
 
-export function getKasLembagaBalance(db: Database): number {
-  return db.kas.length > 0 ? db.kas[db.kas.length - 1].saldoBerjalan : 0;
+export function getKasLembagaBalance(
+  db: Database
+): number {
+  return db.kas.reduce(
+    (saldo, item) =>
+      item.tipe === "masuk"
+        ? saldo + item.jumlah
+        : saldo - item.jumlah,
+    0
+  );
 }
 
-// FILTER HELPER
-export function filterByDateRange<T extends { tanggal: string }>(
+/* =========================================================
+   DATE FILTER
+========================================================= */
+
+export function filterByDateRange<
+  T extends { tanggal: string }
+>(
   items: T[],
-  rangeType: "hari" | "minggu" | "bulan" | "tahun" | "custom" | "semua",
+  rangeType:
+    | "hari"
+    | "minggu"
+    | "bulan"
+    | "tahun"
+    | "custom"
+    | "semua",
   customStart?: string,
   customEnd?: string,
-  baseDate: string = getTodayDateString() // The context local date
+  baseDate: string = getTodayDateString()
 ): T[] {
-  const base = new Date(baseDate);
-  let startStr = "";
-  let endStr = "";
-
-  if (rangeType === "hari") {
-    startStr = baseDate;
-    endStr = baseDate;
-  } else if (rangeType === "minggu") {
-    // Current week (Monday to Sunday)
-    const day = base.getDay();
-    const diffToMonday = base.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(base);
-    monday.setDate(diffToMonday);
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-
-    const pad = (num: number) => String(num).padStart(2, "0");
-    startStr = `${monday.getFullYear()}-${pad(monday.getMonth() + 1)}-${pad(monday.getDate())}`;
-    endStr = `${sunday.getFullYear()}-${pad(sunday.getMonth() + 1)}-${pad(sunday.getDate())}`;
-  } else if (rangeType === "bulan") {
-    // Current month (1st to end of month)
-    const year = base.getFullYear();
-    const month = base.getMonth();
-    const lastDay = new Date(year, month + 1, 0).getDate();
-    
-    const pad = (num: number) => String(num).padStart(2, "0");
-    startStr = `${year}-${pad(month + 1)}-01`;
-    endStr = `${year}-${pad(month + 1)}-${pad(lastDay)}`;
-  } else if (rangeType === "tahun") {
-    startStr = `${base.getFullYear()}-01-01`;
-    endStr = `${base.getFullYear()}-12-31`;
-  } else if (rangeType === "custom" && customStart && customEnd) {
-    startStr = customStart;
-    endStr = customEnd;
-  } else {
-    // No filter
+  if (rangeType === "semua") {
     return items;
   }
 
-  return items.filter(item => item.tanggal >= startStr && item.tanggal <= endStr);
-}
+  const base = new Date(`${baseDate}T00:00:00`);
 
-// 6. Add Other Income Transaction
-export function addOtherIncomeTransaction(
-  db: Database,
-  data: {
-    tanggal: string;
-    jenis: string;
-    nominal: number;
-    keterangan?: string;
-  }
-): Database {
-  const nextDb = { ...db };
-  const newId = generateUniqueId("PML");
-  const newIncome: PemasukanLain = {
-    id: newId,
-    tanggal: data.tanggal,
-    jenis: data.jenis,
-    nominal: data.nominal,
-    keterangan: data.keterangan
-  };
-  nextDb.otherIncomes = [newIncome, ...nextDb.otherIncomes];
+  let start = "";
+  let end = "";
 
-  // Update General Kas Lembaga
-  const prevKasSaldo = nextDb.kas.length > 0 ? nextDb.kas[nextDb.kas.length - 1].saldoBerjalan : 0;
-  const newKasTx: KasLembaga = {
-    id: generateUniqueId("KAS"),
-    tanggal: data.tanggal,
-    tipe: "masuk",
-    keterangan: `Pemasukan Lain [${newId}] - ${data.jenis}${data.keterangan ? ' - ' + data.keterangan : ''}`,
-    jumlah: data.nominal,
-    saldoBerjalan: prevKasSaldo + data.nominal,
-    referensiId: newId
-  };
-  nextDb.kas = [...nextDb.kas, newKasTx];
-
-  saveDatabase(nextDb);
-  return nextDb;
-}
-
-// 7. Submit Attendance Report by Tutor
-export function submitAttendanceReport(
-  db: Database,
-  data: {
-    tanggal: string;
-    tutorId: string;
-    siswaId: string;
-    programId: string;
-    fotoJurnal: string;
-    keterangan?: string;
-  }
-): Database {
-  const nextDb = { ...db };
-  const tutor = nextDb.tutors.find(t => t.id === data.tutorId);
-  const student = nextDb.students.find(s => s.id === data.siswaId);
-  const program = nextDb.programs.find(p => p.id === data.programId);
-
-  if (!tutor || !student || !program) {
-    console.error("Failed to submit attendance report: missing entities", { tutor, student, program });
-    return db;
+  if (rangeType === "hari") {
+    start = baseDate;
+    end = baseDate;
   }
 
-  const newId = generateUniqueId("LPK");
-  const newReport: LaporanKehadiran = {
-    id: newId,
-    tanggal: data.tanggal,
-    tutorId: tutor.id,
-    tutorNama: tutor.nama,
-    siswaId: student.id,
-    siswaNama: student.nama,
-    programId: program.id,
-    programNama: program.nama,
-    fotoJurnal: data.fotoJurnal,
-    keterangan: data.keterangan,
-    status: "pending"
-  };
-  nextDb.attendanceReports = [newReport, ...nextDb.attendanceReports];
+  if (rangeType === "minggu") {
+    const day = base.getDay();
 
-  saveDatabase(nextDb);
-  return nextDb;
-}
+    const diff =
+      base.getDate() -
+      day +
+      (day === 0 ? -6 : 1);
 
-// 8. Verify Attendance Report by Admin
-export function verifyAttendanceReport(
-  db: Database,
-  reportId: string,
-  status: "setuju" | "tolak",
-  catatanAdmin?: string,
-  tanggalProses: string = getTodayDateString()
-): Database {
-  let nextDb = { ...db };
-  const reportIdx = nextDb.attendanceReports.findIndex(r => r.id === reportId);
-  if (reportIdx === -1) return db;
+    const monday = new Date(base);
 
-  const report = nextDb.attendanceReports[reportIdx];
-  if (report.status !== "pending") return db;
+    monday.setDate(diff);
 
-  // Update report status
-  const updatedReport: LaporanKehadiran = {
-    ...report,
-    status,
-    tanggalProses,
-    catatanAdmin
-  };
-  nextDb.attendanceReports = [...nextDb.attendanceReports];
-  nextDb.attendanceReports[reportIdx] = updatedReport;
+    const sunday = new Date(monday);
 
-  if (status === "setuju") {
-    // Automatically trigger session transaction!
-    nextDb = addSessionTransaction(nextDb, {
-      tanggal: report.tanggal,
-      siswaId: report.siswaId,
-      tutorId: report.tutorId,
-      programId: report.programId,
-      catatan: `Laporan Kehadiran Terverifikasi [${report.id}]` + (report.keterangan ? ` - ${report.keterangan}` : "")
-    });
-  } else {
-    saveDatabase(nextDb);
-  }
-
-  return nextDb;
-}
-
-// 8b. Undo Verification of Attendance Report
-export function undoVerifyAttendanceReport(
-  db: Database,
-  reportId: string
-): Database {
-  if (!reportId) return db;
-  let nextDb = { ...db };
-  const reportIdx = (nextDb.attendanceReports || []).findIndex(r => r.id === reportId);
-  if (reportIdx === -1) return db;
-
-  const report = nextDb.attendanceReports[reportIdx];
-  if (report.status === "pending") return db;
-
-  const oldStatus = report.status;
-
-  // Update report status back to pending
-  const updatedReport: LaporanKehadiran = {
-    ...report,
-    status: "pending",
-    tanggalProses: undefined,
-    catatanAdmin: undefined
-  };
-  nextDb.attendanceReports = [...nextDb.attendanceReports];
-  nextDb.attendanceReports[reportIdx] = updatedReport;
-
-  if (oldStatus === "setuju") {
-    // Find all corresponding sessions
-    const relatedSessions = (nextDb.sessions || []).filter(
-      s => (s.catatan && s.catatan.includes(reportId)) ||
-           (s.tanggal === report.tanggal && s.siswaId === report.siswaId && s.tutorId === report.tutorId && s.programId === report.programId)
-    );
-    relatedSessions.forEach(s => {
-      nextDb = deleteSessionTransaction(nextDb, s.id);
-    });
-
-    // Also remove any direct ledger entries referencing reportId
-    const removedStudentTxs = (nextDb.studentLedger || []).filter(
-      tx => tx.referensiId === reportId || (tx.keterangan && tx.keterangan.includes(reportId))
-    );
-    removedStudentTxs.forEach(tx => { nextDb = recordDeletedId(nextDb, tx.id); });
-    nextDb.studentLedger = (nextDb.studentLedger || []).filter(
-      tx => tx.referensiId !== reportId && !(tx.keterangan && tx.keterangan.includes(reportId))
+    sunday.setDate(
+      monday.getDate() + 6
     );
 
-    const removedTutorTxs = (nextDb.tutorLedger || []).filter(
-      tx => tx.referensiId === reportId || (tx.keterangan && tx.keterangan.includes(reportId))
-    );
-    removedTutorTxs.forEach(tx => { nextDb = recordDeletedId(nextDb, tx.id); });
-    nextDb.tutorLedger = (nextDb.tutorLedger || []).filter(
-      tx => tx.referensiId !== reportId && !(tx.keterangan && tx.keterangan.includes(reportId))
-    );
+    const format = (d: Date) =>
+      `${d.getFullYear()}-${String(
+        d.getMonth() + 1
+      ).padStart(2, "0")}-${String(
+        d.getDate()
+      ).padStart(2, "0")}`;
+
+    start = format(monday);
+    end = format(sunday);
   }
 
-  nextDb = recalculateAllLedgers(nextDb);
-  saveDatabase(nextDb);
-  return nextDb;
-}
+  if (rangeType === "bulan") {
+    const year = base.getFullYear();
+    const month = base.getMonth();
 
-// 8c. Delete Session Transaction
-export function deleteSessionTransaction(
-  db: Database,
-  sessionId: string
-): Database {
-  if (!sessionId) return db;
-  let nextDb = { ...db };
-  nextDb = recordDeletedId(nextDb, sessionId);
-  
-  // Find the session if it exists
-  const session = (nextDb.sessions || []).find(s => s.id === sessionId);
+    start =
+      `${year}-${String(month + 1).padStart(2, "0")}-01`;
 
-  // Remove session from array
-  nextDb.sessions = (nextDb.sessions || []).filter(s => s.id !== sessionId);
+    const lastDay = new Date(
+      year,
+      month + 1,
+      0
+    ).getDate();
 
-  // If this session was created from an attendance report, revert the report status back to pending
-  if (session?.catatan) {
-    const match = session.catatan.match(/\[(LPK-[^\]]+)\]/);
-    if (match && match[1]) {
-      const reportId = match[1];
-      const reportIdx = (nextDb.attendanceReports || []).findIndex(r => r.id === reportId);
-      if (reportIdx !== -1) {
-        nextDb.attendanceReports = [...nextDb.attendanceReports];
-        nextDb.attendanceReports[reportIdx] = {
-          ...nextDb.attendanceReports[reportIdx],
-          status: "pending",
-          tanggalProses: undefined,
-          catatanAdmin: undefined
-        };
-      }
-    }
+    end =
+      `${year}-${String(month + 1).padStart(2, "0")}-${String(
+        lastDay
+      ).padStart(2, "0")}`;
   }
 
-  // Remove corresponding student ledger entry and record deleted IDs
-  const removedStudentTxs = (nextDb.studentLedger || []).filter(
-    tx => tx.referensiId === sessionId || (tx.keterangan && tx.keterangan.includes(sessionId)) || tx.id === sessionId
-  );
-  removedStudentTxs.forEach(tx => {
-    nextDb = recordDeletedId(nextDb, tx.id);
-  });
-  nextDb.studentLedger = (nextDb.studentLedger || []).filter(
-    tx => tx.referensiId !== sessionId && !(tx.keterangan && tx.keterangan.includes(sessionId)) && tx.id !== sessionId
-  );
+  if (rangeType === "tahun") {
+    const year = base.getFullYear();
 
-  // Remove corresponding tutor ledger entry and record deleted IDs
-  const removedTutorTxs = (nextDb.tutorLedger || []).filter(
-    tx => tx.referensiId === sessionId || (tx.keterangan && tx.keterangan.includes(sessionId)) || tx.id === sessionId
-  );
-  removedTutorTxs.forEach(tx => {
-    nextDb = recordDeletedId(nextDb, tx.id);
-  });
-  nextDb.tutorLedger = (nextDb.tutorLedger || []).filter(
-    tx => tx.referensiId !== sessionId && !(tx.keterangan && tx.keterangan.includes(sessionId)) && tx.id !== sessionId
-  );
-
-  // Recalculate all ledger running balances
-  nextDb = recalculateAllLedgers(nextDb);
-  saveDatabase(nextDb);
-  return nextDb;
-}
-
-// 8d. Delete Attendance Report entirely
-export function deleteAttendanceReport(
-  db: Database,
-  reportId: string
-): Database {
-  if (!reportId) return db;
-  let nextDb = { ...db };
-  nextDb = recordDeletedId(nextDb, reportId);
-  const report = (nextDb.attendanceReports || []).find(r => r.id === reportId);
-
-  // Find all associated sessions
-  const relatedSessions = (nextDb.sessions || []).filter(
-    s => (s.catatan && s.catatan.includes(reportId)) ||
-         (report && s.tanggal === report.tanggal && s.siswaId === report.siswaId && s.tutorId === report.tutorId)
-  );
-
-  // Delete all associated sessions (which will also purge student & tutor ledgers)
-  relatedSessions.forEach(s => {
-    nextDb = deleteSessionTransaction(nextDb, s.id);
-  });
-
-  // Also remove any direct ledger entries referencing reportId if any exist
-  const removedStudentTxs = (nextDb.studentLedger || []).filter(
-    tx => tx.referensiId === reportId || (tx.keterangan && tx.keterangan.includes(reportId)) || tx.id === reportId
-  );
-  removedStudentTxs.forEach(tx => { nextDb = recordDeletedId(nextDb, tx.id); });
-  nextDb.studentLedger = (nextDb.studentLedger || []).filter(
-    tx => tx.referensiId !== reportId && !(tx.keterangan && tx.keterangan.includes(reportId)) && tx.id !== reportId
-  );
-
-  const removedTutorTxs = (nextDb.tutorLedger || []).filter(
-    tx => tx.referensiId === reportId || (tx.keterangan && tx.keterangan.includes(reportId)) || tx.id === reportId
-  );
-  removedTutorTxs.forEach(tx => { nextDb = recordDeletedId(nextDb, tx.id); });
-  nextDb.tutorLedger = (nextDb.tutorLedger || []).filter(
-    tx => tx.referensiId !== reportId && !(tx.keterangan && tx.keterangan.includes(reportId)) && tx.id !== reportId
-  );
-
-  // Delete from attendance reports array
-  nextDb.attendanceReports = (nextDb.attendanceReports || []).filter(r => r.id !== reportId);
-  
-  nextDb = recalculateAllLedgers(nextDb);
-  saveDatabase(nextDb);
-  return nextDb;
-}
-
-// 8e. Delete Student Transaction
-export function deleteStudentTransaction(db: Database, studentId: string): Database {
-  if (!studentId) return db;
-  let nextDb = recordDeletedId(db, studentId);
-  nextDb.students = (nextDb.students || []).filter(s => s.id !== studentId);
-  nextDb = recalculateAllLedgers(nextDb);
-  saveDatabase(nextDb);
-  return nextDb;
-}
-
-// 8f. Delete Tutor Transaction
-export function deleteTutorTransaction(db: Database, tutorId: string): Database {
-  if (!tutorId) return db;
-  let nextDb = recordDeletedId(db, tutorId);
-  nextDb.tutors = (nextDb.tutors || []).filter(t => t.id !== tutorId);
-  nextDb = recalculateAllLedgers(nextDb);
-  saveDatabase(nextDb);
-  return nextDb;
-}
-
-// 8g. Delete Program Transaction
-export function deleteProgramTransaction(db: Database, programId: string): Database {
-  if (!programId) return db;
-  let nextDb = recordDeletedId(db, programId);
-  nextDb.programs = (nextDb.programs || []).filter(p => p.id !== programId);
-  nextDb = recalculateAllLedgers(nextDb);
-  saveDatabase(nextDb);
-  return nextDb;
-}
-
-// 8h. Delete Other Income Transaction
-export function deleteOtherIncomeTransaction(db: Database, incomeId: string): Database {
-  if (!incomeId) return db;
-  let nextDb = recordDeletedId(db, incomeId);
-  nextDb.otherIncomes = (nextDb.otherIncomes || []).filter(o => o.id !== incomeId);
-  
-  // Also delete corresponding Kas entry if linked
-  const removedKas = (nextDb.kas || []).filter(k => k.referensiId === incomeId || k.id === incomeId || (k.keterangan && k.keterangan.includes(incomeId)));
-  removedKas.forEach(k => { nextDb = recordDeletedId(nextDb, k.id); });
-  nextDb.kas = (nextDb.kas || []).filter(k => k.referensiId !== incomeId && k.id !== incomeId && !(k.keterangan && k.keterangan.includes(incomeId)));
-  
-  nextDb = recalculateAllLedgers(nextDb);
-  saveDatabase(nextDb);
-  return nextDb;
-}
-
-// 8i. Delete Slip Gaji Transaction
-export function deleteSlipGajiTransaction(db: Database, slipId: string): Database {
-  if (!slipId) return db;
-  let nextDb = recordDeletedId(db, slipId);
-  nextDb.slips = (nextDb.slips || []).filter(s => s.id !== slipId);
-
-  // Remove from tutor ledger
-  const removedTutorTxs = (nextDb.tutorLedger || []).filter(tx => tx.referensiId === slipId || (tx.keterangan && tx.keterangan.includes(slipId)) || tx.id === slipId);
-  removedTutorTxs.forEach(tx => { nextDb = recordDeletedId(nextDb, tx.id); });
-  nextDb.tutorLedger = (nextDb.tutorLedger || []).filter(tx => tx.referensiId !== slipId && !(tx.keterangan && tx.keterangan.includes(slipId)) && tx.id !== slipId);
-
-  // Remove corresponding kas entry
-  const removedKas = (nextDb.kas || []).filter(k => k.referensiId === slipId || (k.keterangan && k.keterangan.includes(slipId)) || k.id === slipId);
-  removedKas.forEach(k => { nextDb = recordDeletedId(nextDb, k.id); });
-  nextDb.kas = (nextDb.kas || []).filter(k => k.referensiId !== slipId && !(k.keterangan && k.keterangan.includes(slipId)) && k.id !== slipId);
-
-  nextDb = recalculateAllLedgers(nextDb);
-  saveDatabase(nextDb);
-  return nextDb;
-}
-
-// 8j. Delete Payment Transaction
-export function deletePaymentTransaction(db: Database, paymentId: string): Database {
-  if (!paymentId) return db;
-  let nextDb = recordDeletedId(db, paymentId);
-  nextDb.payments = (nextDb.payments || []).filter(p => p.id !== paymentId);
-
-  // Remove from studentLedger
-  const removedStudentTxs = (nextDb.studentLedger || []).filter(tx => tx.referensiId === paymentId || (tx.keterangan && tx.keterangan.includes(paymentId)) || tx.id === paymentId);
-  removedStudentTxs.forEach(tx => { nextDb = recordDeletedId(nextDb, tx.id); });
-  nextDb.studentLedger = (nextDb.studentLedger || []).filter(tx => tx.referensiId !== paymentId && !(tx.keterangan && tx.keterangan.includes(paymentId)) && tx.id !== paymentId);
-
-  // Remove corresponding kas entry
-  const removedKas = (nextDb.kas || []).filter(k => k.referensiId === paymentId || (k.keterangan && k.keterangan.includes(paymentId)) || k.id === paymentId);
-  removedKas.forEach(k => { nextDb = recordDeletedId(nextDb, k.id); });
-  nextDb.kas = (nextDb.kas || []).filter(k => k.referensiId !== paymentId && !(k.keterangan && k.keterangan.includes(paymentId)) && k.id !== paymentId);
-
-  nextDb = recalculateAllLedgers(nextDb);
-  saveDatabase(nextDb);
-  return nextDb;
-}
-
-// 8k. Delete General Expense Transaction (Kas Keluar)
-export function deleteGeneralExpenseTransaction(db: Database, kasIdOrRefId: string): Database {
-  if (!kasIdOrRefId) return db;
-  let nextDb = recordDeletedId(db, kasIdOrRefId);
-  const removedKas = (nextDb.kas || []).filter(k => k.id === kasIdOrRefId || k.referensiId === kasIdOrRefId);
-  removedKas.forEach(k => { nextDb = recordDeletedId(nextDb, k.id); });
-  nextDb.kas = (nextDb.kas || []).filter(k => k.id !== kasIdOrRefId && k.referensiId !== kasIdOrRefId);
-
-  nextDb = recalculateAllLedgers(nextDb);
-  saveDatabase(nextDb);
-  return nextDb;
-}
-
-// 9. Check Duplicate Session Helper
-export function checkDuplicateSession(
-  db: Database,
-  data: {
-    tanggal: string;
-    siswaId: string;
-    tutorId: string;
-    programId: string;
+    start = `${year}-01-01`;
+    end = `${year}-12-31`;
   }
-): boolean {
-  return db.sessions.some(
-    s => s.tanggal === data.tanggal &&
-         s.siswaId === data.siswaId &&
-         s.tutorId === data.tutorId &&
-         s.programId === data.programId
+
+  if (
+    rangeType === "custom" &&
+    customStart &&
+    customEnd
+  ) {
+    start = customStart;
+    end = customEnd;
+  }
+
+  if (!start || !end) {
+    return items;
+  }
+
+  return items.filter(
+    item =>
+      item.tanggal >= start &&
+      item.tanggal <= end
   );
 }
-
-// 10. Indonesian Day Name Mapper
-export function getNamaHariIndo(dateStr: string): string {
-  if (!dateStr) return "Senin";
-  const date = new Date(dateStr);
-  const day = date.getDay(); // 0 = Sunday, 1 = Monday, etc.
-  const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
-  return days[day];
-}
-
-// 11. Schedule Helpers
-export function addScheduleTransaction(
-  db: Database,
-  data: {
-    hari: "Senin" | "Selasa" | "Rabu" | "Kamis" | "Jumat" | "Sabtu" | "Minggu";
-    waktu: string;
-    tutorId: string;
-    siswaId: string;
-    programId: string;
-  }
-): Database {
-  const nextDb = { ...db };
-  const tutor = nextDb.tutors.find(t => t.id === data.tutorId)!;
-  const student = nextDb.students.find(s => s.id === data.siswaId)!;
-  const program = nextDb.programs.find(p => p.id === data.programId)!;
-
-  const newId = `JDW-${String(nextDb.schedules.length + 1).padStart(4, "0")}`;
-  const newSchedule: JadwalTutor = {
-    id: newId,
-    hari: data.hari,
-    waktu: data.waktu,
-    tutorId: tutor.id,
-    tutorNama: tutor.nama,
-    siswaId: student.id,
-    siswaNama: student.nama,
-    programId: program.id,
-    programNama: program.nama
-  };
-
-  nextDb.schedules = [...nextDb.schedules, newSchedule];
-  saveDatabase(nextDb);
-  return nextDb;
-}
-
-export function deleteScheduleTransaction(db: Database, scheduleId: string): Database {
-  let nextDb = recordDeletedId(db, scheduleId);
-  nextDb.schedules = nextDb.schedules.filter(s => s.id !== scheduleId);
-  saveDatabase(nextDb);
-  return nextDb;
-}
-
-export function updateBroadcastMessageTransaction(db: Database, message: string): Database {
-  const nextDb = { ...db };
-  nextDb.broadcastMessage = message;
-  saveDatabase(nextDb);
-  return nextDb;
-}
-
-
