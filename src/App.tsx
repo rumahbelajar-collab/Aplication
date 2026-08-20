@@ -309,7 +309,7 @@ export default function App() {
       if (remoteDb && !isEmptyDatabase(remoteDb)) {
         setDb(remoteDb);
         safeSetItem(DB_STORAGE_KEY, JSON.stringify(remoteDb));
-        alert("Berhasil memulihkan data dari Supabase Cloud!");
+        alert("Berhasil memulihkan data dari Cloud!");
         return;
       }
     }
@@ -318,31 +318,28 @@ export default function App() {
       const success = await pushToSupabase(ensureDatabaseDefaults(db), true);
       if (success) {
         safeSetItem("supabase_last_synced", new Date().toISOString());
-        alert("Berhasil menyinkronkan data ke Supabase Cloud!");
+        alert("Berhasil menyinkronkan data ke Cloud!");
       } else {
-        alert("Gagal menyinkronkan ke Supabase Cloud. Mohon periksa koneksi internet Anda.");
+        alert("Gagal menyinkronkan ke Cloud. Mohon periksa koneksi internet Anda.");
       }
     } catch (error) {
       console.error("Retry cloud sync error:", error);
-      alert("Gagal menyinkronkan ke Supabase Cloud. Mohon periksa koneksi internet Anda.");
+      alert("Gagal menyinkronkan ke Cloud. Mohon periksa koneksi internet Anda.");
     }
   };
 
   if (isInitialLoading || !db) {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-center text-white font-sans">
-        <div className="w-16 h-16 bg-brand-600/20 border border-brand-500/40 rounded-2xl flex items-center justify-center mb-6 shadow-xl relative">
-          <GraduationCap size={32} className="text-brand-400" />
-          <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center border-2 border-slate-900 shadow-sm">
-            <Cloud size={11} className="text-white animate-pulse" />
-          </div>
-        </div>
+        <div className="flex items-center gap-2.5">
+            <img src="public2.png" alt="logo" className="w-20 h-20 object-contain" referrerPolicy="no-referrer" />    
+            </div>
         <div className="flex items-center gap-2 mb-2">
           <RefreshCw size={16} className="text-brand-400 animate-spin" />
-          <h3 className="text-base font-extrabold tracking-wide font-display text-white">Menghubungkan ke Supabase Cloud...</h3>
+          <h3 className="text-base font-extrabold tracking-wide font-display text-white">Menghubungkan ke Cloud...</h3>
         </div>
         <p className="text-xs text-slate-400 font-medium max-w-xs leading-relaxed">
-          Mengambil data terbaru dari server Supabase sebagai sumber data utama.
+          Mengambil data terbaru dari server sebagai sumber data utama.
         </p>
       </div>
     );
