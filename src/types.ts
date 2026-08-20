@@ -1,168 +1,356 @@
+/* =========================================================
+   PROGRAM
+========================================================= */
+
 export interface ProgramBelajar {
-  id: string; // e.g., PB-01
+  id: string;
   nama: string;
-  jenjang: "SD" | "SMP" | "SMA" | "Umum";
+  jenjang: string;
   mapel: string;
-  durasi: number; // in minutes
-  tarifSiswa: number; // rate for student
-  honorTutor: number; // rate for tutor
-  status: "aktif" | "nonaktif";
-  deskripsi?: string;
+  durasi: number;
+  tarifSiswa: number;
+  honorTutor: number;
+  status?: string;
 }
+
+/* =========================================================
+   SISWA
+========================================================= */
 
 export interface Siswa {
-  id: string; // e.g., RBS01
+  id: string;
   nama: string;
-  programId: string; // Active learning program
-  status: "aktif" | "nonaktif";
-  teleponOrangTua: string;
+  programId?: string;
+  status?: string;
+  teleponOrangTua?: string;
   alamat?: string;
-  tanggalDaftar: string; // YYYY-MM-DD
+  tanggalDaftar?: string;
 }
+
+/* =========================================================
+   TUTOR
+========================================================= */
 
 export interface Tutor {
-  id: string; // e.g., RBT01
+  id: string;
   nama: string;
-  idLogin: string; // Custom username created by admin
+
+  /**
+   * ID untuk login tutor.
+   */
+  idLogin?: string;
+
   password?: string;
-  status: "aktif" | "nonaktif";
-  telepon: string;
+
+  status?: string;
+
+  telepon?: string;
   alamat?: string;
-  tanggalBergabung: string; // YYYY-MM-DD
+
+  tanggalBergabung?: string;
 }
+
+/* =========================================================
+   RIWAYAT PERTEMUAN
+========================================================= */
 
 export interface RiwayatPertemuan {
-  id: string; // e.g., RP-0001
-  tanggal: string; // YYYY-MM-DD
+  id: string;
+  tanggal: string;
+
   siswaId: string;
-  siswaNama: string; // snapshot
+  siswaNama: string;
+
   tutorId: string;
-  tutorNama: string; // snapshot
+  tutorNama: string;
+
   programId: string;
-  programNama: string; // snapshot
-  tarifSiswaSnapshot: number; // price at time of session
-  honorTutorSnapshot: number; // tutor honor at time of session
+  programNama: string;
+
+  tarifSiswaSnapshot: number;
+  honorTutorSnapshot: number;
+
   catatan?: string;
 }
+
+/* =========================================================
+   TRANSAKSI REKENING SISWA
+========================================================= */
+
+export type TipeTransaksiSiswa =
+  | "debit"
+  | "kredit";
 
 export interface TransaksiRekeningSiswa {
-  id: string; // e.g., TXS-0001
-  tanggal: string; // YYYY-MM-DD
+  id: string;
+  tanggal: string;
+
   siswaId: string;
-  tipe: "debit" | "kredit"; // debit (tagihan dari sesi), kredit (pembayaran dari ortu)
+
+  tipe: TipeTransaksiSiswa;
+
   keterangan: string;
+
   jumlah: number;
+
   saldoBerjalan: number;
-  referensiId?: string; // refers to RiwayatPertemuan.id or PembayaranSiswa.id
+
+  referensiId?: string;
 }
+
+/* =========================================================
+   PEMBAYARAN SISWA
+========================================================= */
 
 export interface PembayaranSiswa {
-  id: string; // e.g., PAY-0001
-  tanggal: string; // YYYY-MM-DD
+  id: string;
+  tanggal: string;
+
   siswaId: string;
-  siswaNama: string; // snapshot
+  siswaNama: string;
+
   jumlah: number;
-  metode: "admin" | "tutor"; // direct to admin vs via tutor
-  tutorId?: string; // if via tutor
-  tutorNama?: string; // snapshot
-  statusTitipan: "pending" | "diserahkan"; // "pending" means with tutor, "diserahkan" means handed to admin
-  tanggalSerah?: string; // YYYY-MM-DD
+
+  metode: string;
+
+  tutorId?: string;
+  tutorNama?: string;
+
+  statusTitipan: string;
+
+  tanggalSerah?: string;
 }
+
+/* =========================================================
+   TRANSAKSI HONOR TUTOR
+========================================================= */
+
+export type TipeTransaksiTutor =
+  | "kredit"
+  | "debit";
 
 export interface TransaksiHonorTutor {
-  id: string; // e.g., TXT-0001
-  tanggal: string; // YYYY-MM-DD
+  id: string;
+  tanggal: string;
+
   tutorId: string;
-  tipe: "debit" | "kredit"; // kredit (honor masuk dari sesi), debit (honor dibayarkan oleh admin)
+
+  tipe: TipeTransaksiTutor;
+
   keterangan: string;
+
   jumlah: number;
+
   saldoBerjalan: number;
-  referensiId?: string; // refers to RiwayatPertemuan.id or SlipGaji.id
+
+  referensiId?: string;
 }
+
+/* =========================================================
+   SLIP GAJI
+========================================================= */
 
 export interface SlipGaji {
-  id: string; // e.g., SG-0001
-  tanggal: string; // YYYY-MM-DD
+  id: string;
+  tanggal: string;
+
   tutorId: string;
   tutorNama: string;
-  jumlah: number; // Jumlah bersih yang dibayarkan
-  periode: string; // e.g., "Juni 2026"
+
+  jumlah: number;
+
+  periode: string;
+
   catatan?: string;
-  potongan?: number; // Potongan/Denda/Cuts
-  keteranganPotongan?: string; // Keterangan potongan
-  totalHonor?: number; // Total honor kotor yang diselesaikan
+
+  potongan?: number;
+
+  keteranganPotongan?: string;
+
+  totalHonor?: number;
 }
+
+/* =========================================================
+   KAS LEMBAGA
+========================================================= */
+
+export type TipeKas =
+  | "masuk"
+  | "keluar";
 
 export interface KasLembaga {
-  id: string; // e.g., KAS-0001
-  tanggal: string; // YYYY-MM-DD
-  tipe: "masuk" | "keluar";
+  id: string;
+  tanggal: string;
+
+  tipe: TipeKas;
+
   keterangan: string;
+
   jumlah: number;
+
   saldoBerjalan: number;
-  referensiId?: string; // refers to PembayaranSiswa.id or SlipGaji.id or custom exp
 }
 
-// User role session
-export interface UserSession {
-  role: "admin" | "tutor";
-  userId: string; // "admin" or Tutor.id
-  nama: string;
-}
+/* =========================================================
+   PEMASUKAN LAIN
+========================================================= */
 
 export interface PemasukanLain {
-  id: string; // e.g., PML-0001
-  tanggal: string; // YYYY-MM-DD
-  jenis: string; // e.g., Biaya pendaftaran, Penjualan modul, Penjualan seragam, Donasi, Sponsorship, Lain-lain
-  nominal: number;
+  id: string;
+  tanggal: string;
+
+  sumber?: string;
   keterangan?: string;
+
+  jumlah: number;
+
+  metode?: string;
 }
+
+/* =========================================================
+   LAPORAN KEHADIRAN
+========================================================= */
+
+export type StatusLaporanKehadiran =
+  | "pending"
+  | "disetujui"
+  | "ditolak"
+  | "diproses";
 
 export interface LaporanKehadiran {
-  id: string; // e.g., LPK-0001
-  tanggal: string; // YYYY-MM-DD
+  id: string;
+
+  tanggal: string;
+
   tutorId: string;
   tutorNama: string;
+
   siswaId: string;
   siswaNama: string;
+
   programId: string;
   programNama: string;
-  fotoJurnal: string; // Image URL or Base64 representation of custom learning journal
+
+  fotoJurnal: string;
+
   keterangan?: string;
-  status: "pending" | "setuju" | "tolak";
-  tanggalProses?: string; // YYYY-MM-DD
+
+  status?: StatusLaporanKehadiran;
+
   catatanAdmin?: string;
+
+  tanggalProses?: string;
 }
+
+/* =========================================================
+   JADWAL TUTOR
+========================================================= */
 
 export interface JadwalTutor {
-  id: string; // e.g., JDW-0001
-  hari: "Senin" | "Selasa" | "Rabu" | "Kamis" | "Jumat" | "Sabtu" | "Minggu";
-  waktu: string; // e.g. "13:30 - 15:00"
-  tutorId: string;
-  tutorNama: string;
-  siswaId: string;
-  siswaNama: string;
-  programId: string;
-  programNama: string;
+  id: string;
+
+  tanggal?: string;
+  hari?: string;
+
+  jamMulai?: string;
+  jamSelesai?: string;
+
+  tutorId?: string;
+  tutorNama?: string;
+
+  siswaId?: string;
+  siswaNama?: string;
+
+  programId?: string;
+  programNama?: string;
+
+  status?: string;
+
+  catatan?: string;
 }
 
-export interface RaportSubject {
-  name: string;
-  to1: number;
-  to2: number;
-  to3: number;
-}
+/* =========================================================
+   RAPORT
+========================================================= */
 
 export interface RaportSiswa {
   id: string;
-  tutor: string;
-  name: string;
-  class: string;
-  grade: string;
-  notes: string;
-  subjects: RaportSubject[];
-  average: string;
-  date: string;
+
+  siswaId: string;
+  siswaNama?: string;
+
+  programId?: string;
+  programNama?: string;
+
+  periode?: string;
+
+  nilai?: number;
+  predikat?: string;
+
+  catatan?: string;
+
+  createdAt?: string;
+  updatedAt?: string;
 }
 
+/* =========================================================
+   DATABASE
+========================================================= */
 
+export interface Database {
+  programs: ProgramBelajar[];
+
+  students: Siswa[];
+
+  tutors: Tutor[];
+
+  sessions: RiwayatPertemuan[];
+
+  studentLedger: TransaksiRekeningSiswa[];
+
+  payments: PembayaranSiswa[];
+
+  tutorLedger: TransaksiHonorTutor[];
+
+  slips: SlipGaji[];
+
+  kas: KasLembaga[];
+
+  otherIncomes: PemasukanLain[];
+
+  attendanceReports: LaporanKehadiran[];
+
+  schedules: JadwalTutor[];
+
+  raports: RaportSiswa[];
+
+  broadcastMessage: string;
+
+  lastUpdated: string;
+
+  id: string;
+
+  tanggal: string;
+
+  tutorId: string;
+  tutorNama: string;
+
+  siswaId: string;
+  siswaNama: string;
+
+  programId: string;
+  programNama: string;
+
+  fotoJurnal: string;
+
+  keterangan?: string;
+
+  status?: StatusLaporanKehadiran;
+
+  catatanAdmin?: string;
+
+  tanggalProses?: string;
+
+  createdAt?: string;
+  updatedAt?: string;
+}

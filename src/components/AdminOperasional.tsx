@@ -32,7 +32,7 @@ import {
 } from "../lib/db";
 import { Siswa, Tutor, ProgramBelajar, JadwalTutor } from "../types";
 import { downloadDaftarSiswaPDF, downloadDaftarTutorPDF } from "../lib/pdfGenerator";
-import { deleteRecordFromSupabase } from "../lib/supabase";
+import { deleteRecordFromSupabase } from "../lib/db";
 
 interface AdminOperasionalProps {
   db: Database;

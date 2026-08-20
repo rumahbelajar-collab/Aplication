@@ -1,0 +1,3178 @@
+﻿// src/lib/db.ts
+
+import { supabase } from "./supabase";
+import type { Tutor, Siswa } from "../types";
+
+/* =========================================================
+   KONFIGURASI
+   ========================================================= */
+
+export const DB_ID = "main_v1";
+
+export const DB_STORAGE_KEY = "rumah_belajar_database";
+
+const DB_VERSION = 2;
+
+const SUPABASE_TABLE = "rumah_belajar_db";
+
+/* =========================================================
+   TIPE DASAR
+   ========================================================= */
+
+export type ID = string;
+
+export interface Program {
+  id: ID;
+  nama?: string;
+  name?: string;
+  harga?: number;
+  price?: number;
+  biaya?: number;
+  deskripsi?: string;
+  aktif?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+
+  [key: string]: any;
+}
+
+export interface Session {
+  id: ID;
+  siswaId?: string;
+  idSiswa?: string;
+
+  tutorId?: string;
+  idTutor?: string;
+
+  tanggal?: string;
+  date?: string;
+
+  waktuMulai?: string;
+  waktuSelesai?: string;
+
+  status?: string;
+  keterangan?: string;
+  catatan?: string;
+
+  nominal?: number;
+  jumlah?: number;
+  honor?: number;
+
+  createdAt?: string;
+  updatedAt?: string;
+
+  [key: string]: any;
+}
+
+export interface StudentLedger {
+  id: ID;
+  siswaId?: string;
+  idSiswa?: string;
+
+  tanggal?: string;
+  type?: string;
+  tipe?: string;
+
+  nominal?: number;
+  jumlah?: number;
+
+  keterangan?: string;
+  catatan?: string;
+
+  saldo?: number;
+
+  createdAt?: string;
+  updatedAt?: string;
+
+  [key: string]: any;
+}
+
+export interface Payment {
+  id: ID;
+
+  siswaId?: string;
+  idSiswa?: string;
+
+  tutorId?: string;
+  idTutor?: string;
+
+  tanggal?: string;
+  date?: string;
+
+  bulan?: string;
+  periode?: string;
+
+  nominal?: number;
+  jumlah?: number;
+
+  metode?: string;
+  status?: string;
+
+  keterangan?: string;
+  catatan?: string;
+
+  createdAt?: string;
+  updatedAt?: string;
+
+  [key: string]: any;
+}
+
+export interface TutorLedger {
+  id: ID;
+
+  tutorId?: string;
+  idTutor?: string;
+
+  siswaId?: string;
+  idSiswa?: string;
+
+  tanggal?: string;
+  type?: string;
+  tipe?: string;
+
+  nominal?: number;
+  jumlah?: number;
+
+  status?: string;
+  keterangan?: string;
+  catatan?: string;
+
+  saldo?: number;
+
+  createdAt?: string;
+  updatedAt?: string;
+
+  [key: string]: any;
+}
+
+export interface Slip {
+  id: ID;
+
+  tutorId?: string;
+  idTutor?: string;
+
+  bulan?: string;
+  periode?: string;
+
+  tanggal?: string;
+
+  nominal?: number;
+  total?: number;
+  jumlah?: number;
+
+  status?: string;
+
+  keterangan?: string;
+  catatan?: string;
+
+  createdAt?: string;
+  updatedAt?: string;
+
+  [key: string]: any;
+}
+
+export interface Kas {
+  id: ID;
+
+  tanggal?: string;
+
+  tipe?: string;
+  type?: string;
+
+  kategori?: string;
+
+  nominal?: number;
+  jumlah?: number;
+
+  keterangan?: string;
+  catatan?: string;
+
+  createdAt?: string;
+  updatedAt?: string;
+
+  [key: string]: any;
+}
+
+export interface OtherIncome {
+  id: ID;
+
+  tanggal?: string;
+
+  sumber?: string;
+  kategori?: string;
+
+  nominal?: number;
+  jumlah?: number;
+
+  keterangan?: string;
+  catatan?: string;
+
+  createdAt?: string;
+  updatedAt?: string;
+
+  [key: string]: any;
+}
+
+export interface AttendanceReport {
+  id: ID;
+
+  tutorId?: string;
+  idTutor?: string;
+
+  tanggal?: string;
+  date?: string;
+
+  jumlahSesi?: number;
+
+  status?: string;
+
+  foto?: string;
+  fotoUrl?: string;
+  evidenceUrl?: string;
+
+  catatanTutor?: string;
+  catatanAdmin?: string;
+
+  tanggalProses?: string;
+
+  nominal?: number;
+  honor?: number;
+
+  createdAt?: string;
+  updatedAt?: string;
+
+  [key: string]: any;
+}
+
+export interface Schedule {
+  id: ID;
+
+  siswaId?: string;
+  idSiswa?: string;
+
+  tutorId?: string;
+  idTutor?: string;
+
+  tanggal?: string;
+  date?: string;
+
+  jam?: string;
+  waktu?: string;
+
+  hari?: string;
+
+  status?: string;
+
+  keterangan?: string;
+  catatan?: string;
+
+  createdAt?: string;
+  updatedAt?: string;
+
+  [key: string]: any;
+}
+
+export interface Raport {
+  id: ID;
+
+  siswaId?: string;
+  idSiswa?: string;
+
+  tutorId?: string;
+  idTutor?: string;
+
+  periode?: string;
+  bulan?: string;
+
+  nilai?: Record<string, any>;
+
+  catatan?: string;
+
+  createdAt?: string;
+  updatedAt?: string;
+
+  [key: string]: any;
+}
+
+export interface BroadcastMessage {
+  id?: ID;
+
+  title?: string;
+  judul?: string;
+
+  message?: string;
+  pesan?: string;
+
+  aktif?: boolean;
+
+  tanggal?: string;
+
+  createdAt?: string;
+  updatedAt?: string;
+
+  [key: string]: any;
+}
+
+/* =========================================================
+   DATABASE UTAMA
+   ========================================================= */
+
+export interface Database {
+  version: number;
+
+  programs: Program[];
+
+  students: Siswa[];
+
+  tutors: Tutor[];
+
+  sessions: Session[];
+
+  studentLedger: StudentLedger[];
+
+  payments: Payment[];
+
+  tutorLedger: TutorLedger[];
+
+  slips: Slip[];
+
+  kas: Kas[];
+
+  otherIncomes: OtherIncome[];
+
+  attendanceReports: AttendanceReport[];
+
+  schedules: Schedule[];
+
+  raports?: Raport[];
+
+  broadcastMessage?: BroadcastMessage | null;
+
+  lastUpdated?: string;
+
+  [key: string]: any;
+}
+
+/* =========================================================
+   DEFAULT DATABASE
+   ========================================================= */
+
+export const createEmptyDatabase = (): Database => ({
+  version: DB_VERSION,
+
+  programs: [],
+
+  students: [],
+
+  tutors: [],
+
+  sessions: [],
+
+  studentLedger: [],
+
+  payments: [],
+
+  tutorLedger: [],
+
+  slips: [],
+
+  kas: [],
+
+  otherIncomes: [],
+
+  attendanceReports: [],
+
+  schedules: [],
+
+  raports: [],
+
+  broadcastMessage: null,
+
+  lastUpdated: new Date().toISOString(),
+});
+
+/* =========================================================
+   SAFE STORAGE
+   ========================================================= */
+
+export function safeGetItem<T = any>(
+  key: string,
+  fallback: T | null = null
+): T | null {
+  try {
+    if (typeof window === "undefined") {
+      return fallback;
+    }
+
+    const raw = window.localStorage.getItem(key);
+
+    if (!raw) {
+      return fallback;
+    }
+
+    return JSON.parse(raw) as T;
+  } catch (error) {
+    console.error(`safeGetItem error [${key}]:`, error);
+    return fallback;
+  }
+}
+
+export function safeSetItem<T = any>(
+  key: string,
+  value: T
+): boolean {
+  try {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    window.localStorage.setItem(
+      key,
+      JSON.stringify(value)
+    );
+
+    return true;
+  } catch (error) {
+    console.error(`safeSetItem error [${key}]:`, error);
+
+    return false;
+  }
+}
+
+export function safeRemoveItem(key: string): boolean {
+  try {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    window.localStorage.removeItem(key);
+
+    return true;
+  } catch (error) {
+    console.error(`safeRemoveItem error [${key}]:`, error);
+
+    return false;
+  }
+}
+
+/* =========================================================
+   UTILITAS UMUM
+   ========================================================= */
+
+export function generateId(prefix = "ID"): string {
+  const timestamp = Date.now().toString(36);
+
+  const random = Math.random()
+    .toString(36)
+    .substring(2, 8)
+    .toUpperCase();
+
+  return `${prefix}-${timestamp}-${random}`;
+}
+
+export function getTodayDateString(): string {
+  const now = new Date();
+
+  const year = now.getFullYear();
+
+  const month = String(
+    now.getMonth() + 1
+  ).padStart(2, "0");
+
+  const day = String(
+    now.getDate()
+  ).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+export function formatBulanTahun(
+  value?: string | Date | null
+): string {
+  if (!value) {
+    return "-";
+  }
+
+  const date =
+    value instanceof Date
+      ? value
+      : new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat(
+    "id-ID",
+    {
+      month: "long",
+      year: "numeric",
+    }
+  ).format(date);
+}
+
+export function formatTanggalIndo(
+  value?: string | Date | null
+): string {
+  if (!value) {
+    return "-";
+  }
+
+  const date =
+    value instanceof Date
+      ? value
+      : new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat(
+    "id-ID",
+    {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    }
+  ).format(date);
+}
+
+export function getCurrentTimestamp(): string {
+  return new Date().toISOString();
+}
+
+export function formatRupiah(
+  value: number | string | null | undefined
+): string {
+  const number = Number(value || 0);
+
+  return new Intl.NumberFormat(
+    "id-ID",
+    {
+      style: "currency",
+      currency: "IDR",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }
+  ).format(number);
+}
+
+export function parseNumber(
+  value: unknown,
+  fallback = 0
+): number {
+  const number = Number(value);
+
+  return Number.isFinite(number)
+    ? number
+    : fallback;
+}
+
+/* =========================================================
+   NORMALISASI DATABASE
+   ========================================================= */
+
+export function ensureDatabaseDefaults(
+  input?: Partial<Database> | null
+): Database {
+  const defaults = createEmptyDatabase();
+
+  if (!input || typeof input !== "object") {
+    return defaults;
+  }
+
+  const result: Database = {
+    ...defaults,
+    ...input,
+
+    programs: Array.isArray(input.programs)
+      ? input.programs
+      : [],
+
+    students: Array.isArray(input.students)
+      ? input.students
+      : [],
+
+    tutors: Array.isArray(input.tutors)
+      ? input.tutors
+      : [],
+
+    sessions: Array.isArray(input.sessions)
+      ? input.sessions
+      : [],
+
+    studentLedger: Array.isArray(input.studentLedger)
+      ? input.studentLedger
+      : [],
+
+    payments: Array.isArray(input.payments)
+      ? input.payments
+      : [],
+
+    tutorLedger: Array.isArray(input.tutorLedger)
+      ? input.tutorLedger
+      : [],
+
+    slips: Array.isArray(input.slips)
+      ? input.slips
+      : [],
+
+    kas: Array.isArray(input.kas)
+      ? input.kas
+      : [],
+
+    otherIncomes: Array.isArray(input.otherIncomes)
+      ? input.otherIncomes
+      : [],
+
+    attendanceReports:
+      Array.isArray(input.attendanceReports)
+        ? input.attendanceReports
+        : [],
+
+    schedules: Array.isArray(input.schedules)
+      ? input.schedules
+      : [],
+
+    raports: Array.isArray(input.raports)
+      ? input.raports
+      : [],
+
+    broadcastMessage:
+      input.broadcastMessage ?? null,
+
+    version:
+      typeof input.version === "number"
+        ? input.version
+        : DB_VERSION,
+
+    lastUpdated:
+      input.lastUpdated ||
+      new Date().toISOString(),
+  };
+
+  return result;
+}
+
+/* =========================================================
+   ARRAY MERGE
+   ========================================================= */
+
+function getObjectId(item: any): string | null {
+  if (!item || typeof item !== "object") {
+    return null;
+  }
+
+  const possibleId =
+    item.id ??
+    item._id ??
+    item.uuid ??
+    item.ID;
+
+  if (
+    possibleId === undefined ||
+    possibleId === null ||
+    possibleId === ""
+  ) {
+    return null;
+  }
+
+  return String(possibleId);
+}
+
+function mergeArray<T>(
+  local: T[] = [],
+  remote: T[] = []
+): T[] {
+  const result = [...local];
+
+  const indexById = new Map<string, number>();
+
+  result.forEach((item, index) => {
+    const id = getObjectId(item);
+
+    if (id) {
+      indexById.set(id, index);
+    }
+  });
+
+  for (const remoteItem of remote) {
+    const remoteId = getObjectId(remoteItem);
+
+    if (!remoteId) {
+      result.push(remoteItem);
+      continue;
+    }
+
+    const existingIndex =
+      indexById.get(remoteId);
+
+    if (existingIndex === undefined) {
+      indexById.set(
+        remoteId,
+        result.length
+      );
+
+      result.push(remoteItem);
+    } else {
+      const localItem =
+        result[existingIndex];
+
+      result[existingIndex] = {
+        ...(localItem as any),
+        ...(remoteItem as any),
+      };
+    }
+  }
+
+  return result;
+}
+
+/* =========================================================
+   MERGE DATABASE
+   ========================================================= */
+
+/**
+ * Menggabungkan database lokal dan database hasil recovery.
+ *
+ * Prinsip:
+ * - Tidak menghapus data lokal.
+ * - Tidak menghapus data remote.
+ * - Data dengan ID sama digabung.
+ * - Field yang ada di remote akan memperbarui field lokal.
+ * - Array baru dari remote ikut dimasukkan.
+ */
+export function mergeDatabases(
+  localDatabase?: Partial<Database> | null,
+  remoteDatabase?: Partial<Database> | null
+): Database {
+  const local = ensureDatabaseDefaults(
+    localDatabase
+  );
+
+  const remote = ensureDatabaseDefaults(
+    remoteDatabase
+  );
+
+  const merged: Database = {
+    ...local,
+
+    version: Math.max(
+      local.version || 0,
+      remote.version || 0,
+      DB_VERSION
+    ),
+
+    programs: mergeArray(
+      local.programs,
+      remote.programs
+    ),
+
+    students: mergeArray(
+      local.students,
+      remote.students
+    ),
+
+    tutors: mergeArray(
+      local.tutors,
+      remote.tutors
+    ),
+
+    sessions: mergeArray(
+      local.sessions,
+      remote.sessions
+    ),
+
+    studentLedger: mergeArray(
+      local.studentLedger,
+      remote.studentLedger
+    ),
+
+    payments: mergeArray(
+      local.payments,
+      remote.payments
+    ),
+
+    tutorLedger: mergeArray(
+      local.tutorLedger,
+      remote.tutorLedger
+    ),
+
+    slips: mergeArray(
+      local.slips,
+      remote.slips
+    ),
+
+    kas: mergeArray(
+      local.kas,
+      remote.kas
+    ),
+
+    otherIncomes: mergeArray(
+      local.otherIncomes,
+      remote.otherIncomes
+    ),
+
+    attendanceReports:
+      mergeArray(
+        local.attendanceReports,
+        remote.attendanceReports
+      ),
+
+    schedules: mergeArray(
+      local.schedules,
+      remote.schedules
+    ),
+
+    raports: mergeArray(
+      local.raports || [],
+      remote.raports || []
+    ),
+
+    broadcastMessage:
+      remote.broadcastMessage ??
+      local.broadcastMessage ??
+      null,
+
+    lastUpdated:
+      new Date().toISOString(),
+  };
+
+  return merged;
+}
+
+/* =========================================================
+   LOCAL DATABASE
+   ========================================================= */
+
+export function getDatabase(): Database {
+  const stored =
+    safeGetItem<Database>(
+      DB_STORAGE_KEY,
+      null
+    );
+
+  if (!stored) {
+    const empty =
+      createEmptyDatabase();
+
+    safeSetItem(
+      DB_STORAGE_KEY,
+      empty
+    );
+
+    return empty;
+  }
+
+  const normalized =
+    ensureDatabaseDefaults(stored);
+
+  return normalized;
+}
+
+/* =========================================================
+   SAVE DATABASE
+   ========================================================= */
+
+export function saveDatabase(
+  database: Database
+): Database {
+  const normalized =
+    ensureDatabaseDefaults(database);
+
+  normalized.lastUpdated =
+    new Date().toISOString();
+
+  safeSetItem(
+    DB_STORAGE_KEY,
+    normalized
+  );
+
+  return normalized;
+}
+
+/* =========================================================
+   UPDATE DATABASE
+   ========================================================= */
+
+export function updateDatabase(
+  updater:
+    | Partial<Database>
+    | ((current: Database) => Partial<Database>)
+): Database {
+  const current =
+    getDatabase();
+
+  const changes =
+    typeof updater === "function"
+      ? updater(current)
+      : updater;
+
+  return saveDatabase({
+    ...current,
+    ...changes,
+  });
+}
+
+/* =========================================================
+   RESET DATABASE
+   ========================================================= */
+
+export function resetDatabase(): Database {
+  const empty =
+    createEmptyDatabase();
+
+  saveDatabase(empty);
+
+  return empty;
+}
+
+/* =========================================================
+   GENERIC ARRAY OPERATIONS
+   ========================================================= */
+
+function addToCollection<
+  K extends keyof Database
+>(
+  key: K,
+  item: any
+): Database {
+  const database =
+    getDatabase();
+
+  const collection =
+    Array.isArray(database[key])
+      ? ([...(database[key] as any[])] as any[])
+      : [];
+
+  const newItem = {
+    ...item,
+
+    id:
+      item?.id ||
+      generateId(
+        String(key)
+          .substring(0, 3)
+          .toUpperCase()
+      ),
+
+    createdAt:
+      item?.createdAt ||
+      getCurrentTimestamp(),
+
+    updatedAt:
+      getCurrentTimestamp(),
+  };
+
+  collection.push(newItem);
+
+  return saveDatabase({
+    ...database,
+    [key]: collection,
+  });
+}
+
+function updateCollectionItem<
+  K extends keyof Database
+>(
+  key: K,
+  id: string,
+  updates: Record<string, any>
+): Database {
+  const database =
+    getDatabase();
+
+  const collection =
+    Array.isArray(database[key])
+      ? (database[key] as any[])
+      : [];
+
+  const updated =
+    collection.map((item) => {
+      if (
+        String(item?.id) !==
+        String(id)
+      ) {
+        return item;
+      }
+
+      return {
+        ...item,
+        ...updates,
+        updatedAt:
+          getCurrentTimestamp(),
+      };
+    });
+
+  return saveDatabase({
+    ...database,
+    [key]: updated,
+  });
+}
+
+function deleteCollectionItem<
+  K extends keyof Database
+>(
+  key: K,
+  id: string
+): Database {
+  const database =
+    getDatabase();
+
+  const collection =
+    Array.isArray(database[key])
+      ? (database[key] as any[])
+      : [];
+
+  const filtered =
+    collection.filter(
+      (item) =>
+        String(item?.id) !==
+        String(id)
+    );
+
+  return saveDatabase({
+    ...database,
+    [key]: filtered,
+  });
+}
+
+/* =========================================================
+   PROGRAM
+   ========================================================= */
+
+export function addProgram(
+  program: Partial<Program>
+): Database {
+  return addToCollection(
+    "programs",
+    program
+  );
+}
+
+export function updateProgram(
+  id: string,
+  updates: Partial<Program>
+): Database {
+  return updateCollectionItem(
+    "programs",
+    id,
+    updates
+  );
+}
+
+export function deleteProgram(
+  id: string
+): Database {
+  return deleteCollectionItem(
+    "programs",
+    id
+  );
+}
+
+/* =========================================================
+   SESSION
+   ========================================================= */
+
+export function addSessionTransaction(
+  session: Partial<Session>,
+  ..._extraArgs: any[]
+): Database {
+  return addToCollection(
+    "sessions",
+    session
+  );
+}
+
+export function updateSession(
+  id: string,
+  updates: Partial<Session>
+): Database {
+  return updateCollectionItem(
+    "sessions",
+    id,
+    updates
+  );
+}
+
+export function deleteSession(
+  id: string
+): Database {
+  return deleteCollectionItem(
+    "sessions",
+    id
+  );
+}
+
+/* =========================================================
+   STUDENT LEDGER
+   ========================================================= */
+
+export function addStudentLedgerTransaction(
+  transaction: Partial<StudentLedger>
+): Database {
+  return addToCollection(
+    "studentLedger",
+    transaction
+  );
+}
+
+export function updateStudentLedgerTransaction(
+  id: string,
+  updates: Partial<StudentLedger>
+): Database {
+  return updateCollectionItem(
+    "studentLedger",
+    id,
+    updates
+  );
+}
+
+export function deleteStudentLedgerTransaction(
+  id: string
+): Database {
+  return deleteCollectionItem(
+    "studentLedger",
+    id
+  );
+}
+
+/* =========================================================
+   PAYMENT
+   ========================================================= */
+
+export function addPaymentTransaction(
+  payment: Partial<Payment>
+): Database {
+  return addToCollection(
+    "payments",
+    payment
+  );
+}
+
+export function updatePaymentTransaction(
+  id: string,
+  updates: Partial<Payment>
+): Database {
+  return updateCollectionItem(
+    "payments",
+    id,
+    updates
+  );
+}
+
+export function deletePaymentTransaction(
+  id: string
+): Database {
+  return deleteCollectionItem(
+    "payments",
+    id
+  );
+}
+
+/* =========================================================
+   TUTOR LEDGER
+   ========================================================= */
+
+export function addTutorLedgerTransaction(
+  transaction: Partial<TutorLedger>
+): Database {
+  return addToCollection(
+    "tutorLedger",
+    transaction
+  );
+}
+
+export function updateTutorLedgerTransaction(
+  id: string,
+  updates: Partial<TutorLedger>
+): Database {
+  return updateCollectionItem(
+    "tutorLedger",
+    id,
+    updates
+  );
+}
+
+export function deleteTutorLedgerTransaction(
+  id: string
+): Database {
+  return deleteCollectionItem(
+    "tutorLedger",
+    id
+  );
+}
+
+/* =========================================================
+   SLIP
+   ========================================================= */
+
+export function addSlip(
+  slip: Partial<Slip>
+): Database {
+  return addToCollection(
+    "slips",
+    slip
+  );
+}
+
+export function updateSlip(
+  id: string,
+  updates: Partial<Slip>
+): Database {
+  return updateCollectionItem(
+    "slips",
+    id,
+    updates
+  );
+}
+
+export function deleteSlip(
+  id: string
+): Database {
+  return deleteCollectionItem(
+    "slips",
+    id
+  );
+}
+
+/* =========================================================
+   KAS
+   ========================================================= */
+
+export function addKasTransaction(
+  transaction: Partial<Kas>
+): Database {
+  return addToCollection(
+    "kas",
+    transaction
+  );
+}
+
+export function updateKasTransaction(
+  id: string,
+  updates: Partial<Kas>
+): Database {
+  return updateCollectionItem(
+    "kas",
+    id,
+    updates
+  );
+}
+
+export function deleteKasTransaction(
+  id: string
+): Database {
+  return deleteCollectionItem(
+    "kas",
+    id
+  );
+}
+
+/* =========================================================
+   OTHER INCOME
+   ========================================================= */
+
+export function addOtherIncome(
+  income: Partial<OtherIncome>
+): Database {
+  return addToCollection(
+    "otherIncomes",
+    income
+  );
+}
+
+export function updateOtherIncome(
+  id: string,
+  updates: Partial<OtherIncome>
+): Database {
+  return updateCollectionItem(
+    "otherIncomes",
+    id,
+    updates
+  );
+}
+
+export function deleteOtherIncome(
+  id: string
+): Database {
+  return deleteCollectionItem(
+    "otherIncomes",
+    id
+  );
+}
+
+export function confirmTutorDepositHandover(
+  tutorId: string,
+  amount: number,
+  description = "Konfirmasi titipan tutor"
+): Database {
+  const database = getDatabase();
+
+  const nominal = parseNumber(amount);
+
+  if (!tutorId || nominal <= 0) {
+    return database;
+  }
+
+  const transaction: TutorLedger = {
+    id: generateUniqueId("TDH"),
+    tutorId,
+    idTutor: tutorId,
+    tanggal: getTodayDateString(),
+    type: "titipan_masuk",
+    tipe: "titipan_masuk",
+    nominal,
+    jumlah: nominal,
+    status: "confirmed",
+    keterangan: description,
+    catatan: description,
+    createdAt: getCurrentTimestamp(),
+    updatedAt: getCurrentTimestamp(),
+  };
+
+  return saveDatabase({
+    ...database,
+
+    tutorLedger: [
+      ...database.tutorLedger,
+      transaction,
+    ],
+
+    lastUpdated: getCurrentTimestamp(),
+  });
+}
+
+export function undoTutorDepositHandover(
+  tutorId: string,
+  amount: number,
+  description = "Pembatalan titipan tutor"
+): Database {
+  const database = getDatabase();
+
+  const nominal = parseNumber(amount);
+
+  if (!tutorId || nominal <= 0) {
+    return database;
+  }
+
+  const transaction: TutorLedger = {
+    id: generateUniqueId("TDH-UNDO"),
+    tutorId,
+    idTutor: tutorId,
+    tanggal: getTodayDateString(),
+    type: "titipan_keluar",
+    tipe: "titipan_keluar",
+    nominal,
+    jumlah: nominal,
+    status: "cancelled",
+    keterangan: description,
+    catatan: description,
+    createdAt: getCurrentTimestamp(),
+    updatedAt: getCurrentTimestamp(),
+  };
+
+  return saveDatabase({
+    ...database,
+
+    tutorLedger: [
+      ...database.tutorLedger,
+      transaction,
+    ],
+
+    lastUpdated: getCurrentTimestamp(),
+  });
+}
+
+export function payTutorHonorTransaction(
+  tutorId: string,
+  amount: number,
+  description = "Pembayaran honor tutor",
+  ...extraArgs: any[]
+): Database {
+  const database = getDatabase();
+
+  const nominal = parseNumber(amount);
+
+  if (!tutorId || nominal <= 0) {
+    return database;
+  }
+
+  const transaction: TutorLedger = {
+    id: generateUniqueId("HONOR"),
+    tutorId,
+    idTutor: tutorId,
+    tanggal: getTodayDateString(),
+    type: "honor",
+    tipe: "honor",
+    nominal,
+    jumlah: nominal,
+    status: "paid",
+    keterangan: description,
+    catatan: description,
+    createdAt: getCurrentTimestamp(),
+    updatedAt: getCurrentTimestamp(),
+  };
+
+  const slip: Slip = {
+    id: generateUniqueId("SLIP"),
+    tutorId,
+    idTutor: tutorId,
+    tanggal: getTodayDateString(),
+    nominal,
+    jumlah: nominal,
+    total: nominal,
+    status: "paid",
+    keterangan: description,
+    catatan: description,
+    createdAt: getCurrentTimestamp(),
+    updatedAt: getCurrentTimestamp(),
+  };
+
+  return saveDatabase({
+    ...database,
+
+    tutorLedger: [
+      ...database.tutorLedger,
+      transaction,
+    ],
+
+    slips: [
+      ...database.slips,
+      slip,
+    ],
+
+    lastUpdated: getCurrentTimestamp(),
+  });
+}
+
+export function addGeneralExpenseTransaction(
+  amount: number,
+  description = "Pengeluaran umum",
+  category = "umum",
+  ...extraArgs: any[]
+): Database {
+  const database = getDatabase();
+
+  const nominal = parseNumber(amount);
+
+  if (nominal <= 0) {
+    return database;
+  }
+
+  const transaction: Kas = {
+    id: generateUniqueId("EXP"),
+    tanggal: getTodayDateString(),
+    type: "keluar",
+    tipe: "pengeluaran",
+    kategori: category,
+    nominal,
+    jumlah: nominal,
+    status: "confirmed",
+    keterangan: description,
+    catatan: description,
+    createdAt: getCurrentTimestamp(),
+    updatedAt: getCurrentTimestamp(),
+  };
+
+  return saveDatabase({
+    ...database,
+
+    kas: [
+      ...database.kas,
+      transaction,
+    ],
+
+    lastUpdated: getCurrentTimestamp(),
+  });
+}
+
+export function addOtherIncomeTransaction(
+  amount: number,
+  description = "Pendapatan lainnya",
+  category = "lainnya",
+  ...extraArgs: any[]
+): Database {
+  const database = getDatabase();
+
+  const nominal = parseNumber(amount);
+
+  if (nominal <= 0) {
+    return database;
+  }
+
+  const transaction: OtherIncome = {
+    id: generateUniqueId("INC"),
+    tanggal: getTodayDateString(),
+    sumber: category,
+    kategori: category,
+    nominal,
+    jumlah: nominal,
+    status: "confirmed",
+    keterangan: description,
+    catatan: description,
+    createdAt: getCurrentTimestamp(),
+    updatedAt: getCurrentTimestamp(),
+  };
+
+  return saveDatabase({
+    ...database,
+
+    otherIncomes: [
+      ...database.otherIncomes,
+      transaction,
+    ],
+
+    lastUpdated: getCurrentTimestamp(),
+  });
+}
+
+/* =========================================================
+   ATTENDANCE REPORT
+   ========================================================= */
+
+export function addAttendanceReport(
+  report: Partial<AttendanceReport>
+): Database {
+  return addToCollection(
+    "attendanceReports",
+    report
+  );
+}
+
+export function updateAttendanceReport(
+  id: string,
+  updates: Partial<AttendanceReport>
+): Database {
+  return updateCollectionItem(
+    "attendanceReports",
+    id,
+    updates
+  );
+}
+
+export function deleteAttendanceReport(
+  id: string
+): Database {
+  return deleteCollectionItem(
+    "attendanceReports",
+    id
+  );
+}
+
+/* =========================================================
+   SCHEDULE
+   ========================================================= */
+
+export function addSchedule(
+  schedule: Partial<Schedule>
+): Database {
+  return addToCollection(
+    "schedules",
+    schedule
+  );
+}
+
+export function updateSchedule(
+  id: string,
+  updates: Partial<Schedule>
+): Database {
+  return updateCollectionItem(
+    "schedules",
+    id,
+    updates
+  );
+}
+
+export function deleteSchedule(
+  id: string
+): Database {
+  return deleteCollectionItem(
+    "schedules",
+    id
+  );
+}
+
+/* =========================================================
+   RAPORT
+   ========================================================= */
+
+export function addRaport(
+  raport: Partial<Raport>
+): Database {
+  return addToCollection(
+    "raports",
+    raport
+  );
+}
+
+export function updateRaport(
+  id: string,
+  updates: Partial<Raport>
+): Database {
+  return updateCollectionItem(
+    "raports",
+    id,
+    updates
+  );
+}
+
+export function deleteRaport(
+  id: string
+): Database {
+  return deleteCollectionItem(
+    "raports",
+    id
+  );
+}
+
+/* =========================================================
+   BROADCAST
+   ========================================================= */
+
+export function setBroadcastMessage(
+  message: BroadcastMessage | null
+): Database {
+  return saveDatabase({
+    ...getDatabase(),
+
+    broadcastMessage:
+      message
+        ? {
+            ...message,
+
+            id:
+              message.id ||
+              generateId("BC"),
+
+            updatedAt:
+              getCurrentTimestamp(),
+          }
+        : null,
+  });
+}
+
+export function updateBroadcastMessageTransaction(
+  message: Partial<BroadcastMessage> | null
+): Database {
+  const database = getDatabase();
+
+  if (!message) {
+    return saveDatabase({
+      ...database,
+      broadcastMessage: null,
+      lastUpdated: getCurrentTimestamp(),
+    });
+  }
+
+  const existing =
+    database.broadcastMessage || {};
+
+  const updatedMessage: BroadcastMessage = {
+    ...existing,
+    ...message,
+
+    id:
+      existing.id ||
+      message.id ||
+      generateId("BC"),
+
+    updatedAt:
+      getCurrentTimestamp(),
+  };
+
+  return saveDatabase({
+    ...database,
+
+    broadcastMessage:
+      updatedMessage,
+
+    lastUpdated:
+      getCurrentTimestamp(),
+  });
+}
+
+export function clearBroadcastMessage(): Database {
+  return setBroadcastMessage(null);
+}
+
+/* =========================================================
+   QUERY HELPERS
+   ========================================================= */
+
+export function findStudentById(
+  id: string
+): Siswa | undefined {
+  return getDatabase()
+    .students
+    .find(
+      (student: any) =>
+        String(
+          student?.id ??
+          student?.idSiswa
+        ) === String(id)
+    );
+}
+
+export function findTutorById(
+  id: string
+): Tutor | undefined {
+  return getDatabase()
+    .tutors
+    .find(
+      (tutor: any) =>
+        String(
+          tutor?.id ??
+          tutor?.idTutor
+        ) === String(id)
+    );
+}
+
+export function findProgramById(
+  id: string
+): Program | undefined {
+  return getDatabase()
+    .programs
+    .find(
+      (program) =>
+        String(program.id) ===
+        String(id)
+    );
+}
+
+export function findSessionById(
+  id: string
+): Session | undefined {
+  return getDatabase()
+    .sessions
+    .find(
+      (session) =>
+        String(session.id) ===
+        String(id)
+    );
+}
+
+/* =========================================================
+   FILTER TRANSACTIONS
+   ========================================================= */
+
+export function getStudentPayments(
+  siswaId: string
+): Payment[] {
+  return getDatabase()
+    .payments
+    .filter(
+      (payment) =>
+        String(
+          payment.siswaId ??
+          payment.idSiswa
+        ) === String(siswaId)
+    );
+}
+
+export function getTutorLedger(
+  tutorId: string
+): TutorLedger[] {
+  return getDatabase()
+    .tutorLedger
+    .filter(
+      (item) =>
+        String(
+          item.tutorId ??
+          item.idTutor
+        ) === String(tutorId)
+    );
+}
+
+export function getStudentLedger(
+  siswaId: string
+): StudentLedger[] {
+  return getDatabase()
+    .studentLedger
+    .filter(
+      (item) =>
+        String(
+          item.siswaId ??
+          item.idSiswa
+        ) === String(siswaId)
+    );
+}
+
+export function getTutorSessions(
+  tutorId: string
+): Session[] {
+  return getDatabase()
+    .sessions
+    .filter(
+      (session) =>
+        String(
+          session.tutorId ??
+          session.idTutor
+        ) === String(tutorId)
+    );
+}
+
+export function getStudentSessions(
+  siswaId: string
+): Session[] {
+  return getDatabase()
+    .sessions
+    .filter(
+      (session) =>
+        String(
+          session.siswaId ??
+          session.idSiswa
+        ) === String(siswaId)
+    );
+}
+
+/* =========================================================
+   SALDO SISWA
+   ========================================================= */
+
+export function calculateStudentBalance(
+  siswaId: string
+): number {
+  const transactions =
+    getStudentLedger(siswaId);
+
+  return transactions.reduce(
+    (saldo, transaction) => {
+      const amount =
+        parseNumber(
+          transaction.nominal ??
+          transaction.jumlah
+        );
+
+      const type = String(
+        transaction.type ??
+        transaction.tipe ??
+        ""
+      ).toLowerCase();
+
+      if (
+        type.includes("masuk") ||
+        type.includes("setor") ||
+        type.includes("deposit") ||
+        type.includes("tabung") ||
+        type.includes("credit")
+      ) {
+        return saldo + amount;
+      }
+
+      if (
+        type.includes("keluar") ||
+        type.includes("tarik") ||
+        type.includes("bayar") ||
+        type.includes("debit")
+      ) {
+        return saldo - amount;
+      }
+
+      return saldo;
+    },
+    0
+  );
+}
+
+/* =========================================================
+   SALDO TUTOR
+   ========================================================= */
+
+export function calculateTutorBalance(
+  tutorId: string
+): number {
+  const transactions =
+    getTutorLedger(tutorId);
+
+  return transactions.reduce(
+    (saldo, transaction) => {
+      const amount =
+        parseNumber(
+          transaction.nominal ??
+          transaction.jumlah
+        );
+
+      const type = String(
+        transaction.type ??
+        transaction.tipe ??
+        ""
+      ).toLowerCase();
+
+      if (
+        type.includes("masuk") ||
+        type.includes("honor") ||
+        type.includes("saldo") ||
+        type.includes("titipan") ||
+        type.includes("credit")
+      ) {
+        return saldo + amount;
+      }
+
+      if (
+        type.includes("keluar") ||
+        type.includes("ambil") ||
+        type.includes("bayar") ||
+        type.includes("debit")
+      ) {
+        return saldo - amount;
+      }
+
+      return saldo;
+    },
+    0
+  );
+}
+
+export function getStudentBalance(
+  siswaId: string
+): number {
+  const database = getDatabase();
+
+  const transactions = Array.isArray(
+    database.studentLedger
+  )
+    ? database.studentLedger
+    : [];
+
+  return transactions.reduce(
+    (saldo, transaction) => {
+      const transactionStudentId =
+        transaction.siswaId ??
+        transaction.idSiswa;
+
+      if (
+        String(transactionStudentId) !==
+        String(siswaId)
+      ) {
+        return saldo;
+      }
+
+      const nominal = parseNumber(
+        transaction.nominal ??
+        transaction.jumlah ??
+        0
+      );
+
+      const type = String(
+        transaction.type ??
+        transaction.tipe ??
+        transaction.keterangan ??
+        ""
+      ).toLowerCase();
+
+      if (
+        type.includes("masuk") ||
+        type.includes("setor") ||
+        type.includes("tabung") ||
+        type.includes("deposit") ||
+        type.includes("titipan") ||
+        type.includes("saldo masuk") ||
+        type.includes("credit")
+      ) {
+        return saldo + nominal;
+      }
+
+      if (
+        type.includes("keluar") ||
+        type.includes("tarik") ||
+        type.includes("bayar") ||
+        type.includes("pengeluaran") ||
+        type.includes("saldo keluar") ||
+        type.includes("debit")
+      ) {
+        return saldo - nominal;
+      }
+
+      return saldo;
+    },
+    0
+  );
+}
+
+export function getTutorHonorBalance(
+  tutorId: string
+): number {
+  const database = getDatabase();
+
+  const transactions = Array.isArray(
+    database.tutorLedger
+  )
+    ? database.tutorLedger
+    : [];
+
+  return transactions.reduce(
+    (saldo, transaction) => {
+      const transactionTutorId =
+        transaction.tutorId ??
+        transaction.idTutor;
+
+      if (
+        String(transactionTutorId) !==
+        String(tutorId)
+      ) {
+        return saldo;
+      }
+
+      const nominal = parseNumber(
+        transaction.nominal ??
+        transaction.jumlah ??
+        0
+      );
+
+      const type = String(
+        transaction.type ??
+        transaction.tipe ??
+        transaction.keterangan ??
+        ""
+      ).toLowerCase();
+
+      if (
+        type.includes("honor") ||
+        type.includes("fee") ||
+        type.includes("sesi") ||
+        type.includes("mengajar")
+      ) {
+        return saldo + nominal;
+      }
+
+      return saldo;
+    },
+    0
+  );
+}
+
+export function getTutorDepositBalance(
+  tutorId: string
+): number {
+  const database = getDatabase();
+
+  const transactions = Array.isArray(
+    database.tutorLedger
+  )
+    ? database.tutorLedger
+    : [];
+
+  return transactions.reduce(
+    (saldo, transaction) => {
+      const transactionTutorId =
+        transaction.tutorId ??
+        transaction.idTutor;
+
+      if (
+        String(transactionTutorId) !==
+        String(tutorId)
+      ) {
+        return saldo;
+      }
+
+      const nominal = parseNumber(
+        transaction.nominal ??
+        transaction.jumlah ??
+        0
+      );
+
+      const type = String(
+        transaction.type ??
+        transaction.tipe ??
+        transaction.keterangan ??
+        ""
+      ).toLowerCase();
+
+      if (
+        type.includes("titipan") ||
+        type.includes("deposit") ||
+        type.includes("saldo")
+      ) {
+        if (
+          type.includes("keluar") ||
+          type.includes("ambil") ||
+          type.includes("tarik")
+        ) {
+          return saldo - nominal;
+        }
+
+        return saldo + nominal;
+      }
+
+      return saldo;
+    },
+    0
+  );
+}
+
+export function getKasLembagaBalance(): number {
+  const database = getDatabase();
+
+  const kasTransactions = Array.isArray(database.kas)
+    ? database.kas
+    : [];
+
+  return kasTransactions.reduce(
+    (saldo, transaction) => {
+      const nominal = parseNumber(
+        transaction.nominal ??
+        transaction.jumlah ??
+        0
+      );
+
+      const type = String(
+        transaction.tipe ??
+        transaction.type ??
+        ""
+      ).toLowerCase();
+
+      // Transaksi yang menambah kas lembaga
+      if (
+        type.includes("masuk") ||
+        type.includes("pendapatan") ||
+        type.includes("pemasukan") ||
+        type.includes("setor") ||
+        type.includes("terima") ||
+        type.includes("income") ||
+        type.includes("credit")
+      ) {
+        return saldo + nominal;
+      }
+
+      // Transaksi yang mengurangi kas lembaga
+      if (
+        type.includes("keluar") ||
+        type.includes("pengeluaran") ||
+        type.includes("bayar") ||
+        type.includes("penarikan") ||
+        type.includes("keluar") ||
+        type.includes("expense") ||
+        type.includes("debit")
+      ) {
+        return saldo - nominal;
+      }
+
+      return saldo;
+    },
+    0
+  );
+}
+
+/* =========================================================
+   STATISTIK
+   ========================================================= */
+
+export interface DatabaseStatistics {
+  programs: number;
+  students: number;
+  tutors: number;
+  sessions: number;
+  payments: number;
+  attendanceReports: number;
+  schedules: number;
+  studentLedger: number;
+  tutorLedger: number;
+  slips: number;
+  kas: number;
+  otherIncomes: number;
+}
+
+export function getDatabaseStatistics(): DatabaseStatistics {
+  const db =
+    getDatabase();
+
+  return {
+    programs:
+      db.programs.length,
+
+    students:
+      db.students.length,
+
+    tutors:
+      db.tutors.length,
+
+    sessions:
+      db.sessions.length,
+
+    payments:
+      db.payments.length,
+
+    attendanceReports:
+      db.attendanceReports.length,
+
+    schedules:
+      db.schedules.length,
+
+    studentLedger:
+      db.studentLedger.length,
+
+    tutorLedger:
+      db.tutorLedger.length,
+
+    slips:
+      db.slips.length,
+
+    kas:
+      db.kas.length,
+
+    otherIncomes:
+      db.otherIncomes.length,
+  };
+}
+
+export async function deleteRecordFromSupabase(
+  tableName: string,
+  recordId: string
+): Promise<boolean> {
+  try {
+    if (!tableName || !recordId) {
+      console.error(
+        "deleteRecordFromSupabase: tableName dan recordId wajib diisi"
+      );
+
+      return false;
+    }
+
+    const { error } = await supabase
+      .from(tableName)
+      .delete()
+      .eq("id", recordId);
+
+    if (error) {
+      console.error(
+        `Gagal menghapus record dari ${tableName}:`,
+        error
+      );
+
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error(
+      "deleteRecordFromSupabase:",
+      error
+    );
+
+    return false;
+  }
+}
+
+/* =========================================================
+   SUPABASE
+   ========================================================= */
+
+/**
+ * Menyimpan database lokal ke Supabase.
+ *
+ * Struktur tabel:
+ *
+ * rumah_belajar_db
+ * â”œâ”€â”€ id
+ * â”œâ”€â”€ data
+ * â””â”€â”€ updated_at
+ */
+export async function saveDatabaseToSupabase(
+  database?: Database
+): Promise<Database> {
+  const db =
+    ensureDatabaseDefaults(
+      database || getDatabase()
+    );
+
+  db.lastUpdated =
+    new Date().toISOString();
+
+  const payload = {
+    id: DB_ID,
+
+    data: db,
+
+    updated_at:
+      db.lastUpdated,
+  };
+
+  const { error } =
+    await supabase
+      .from(SUPABASE_TABLE)
+      .upsert(
+        payload,
+        {
+          onConflict: "id",
+        }
+      );
+
+  if (error) {
+    console.error(
+      "saveDatabaseToSupabase:",
+      error
+    );
+
+    throw error;
+  }
+
+  saveDatabase(db);
+
+  return db;
+}
+
+/* =========================================================
+   LOAD DATABASE DARI SUPABASE
+   ========================================================= */
+
+export async function loadDatabaseFromSupabase(): Promise<Database | null> {
+  const { data, error } =
+    await supabase
+      .from(SUPABASE_TABLE)
+      .select(
+        "id,data,updated_at"
+      )
+      .eq("id", DB_ID)
+      .maybeSingle();
+
+  if (error) {
+    console.error(
+      "loadDatabaseFromSupabase:",
+      error
+    );
+
+    return null;
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  const remoteDatabase =
+    ensureDatabaseDefaults(
+      data.data as Partial<Database>
+    );
+
+  return remoteDatabase;
+}
+
+/* =========================================================
+   SYNC DATABASE
+   ========================================================= */
+
+export async function syncDatabase(): Promise<Database> {
+  const local =
+    getDatabase();
+
+  try {
+    const remote =
+      await loadDatabaseFromSupabase();
+
+    if (!remote) {
+      return local;
+    }
+
+    const merged =
+      mergeDatabases(
+        local,
+        remote
+      );
+
+    saveDatabase(
+      merged
+    );
+
+    return merged;
+  } catch (error) {
+    console.error(
+      "syncDatabase:",
+      error
+    );
+
+    return local;
+  }
+}
+
+/* =========================================================
+   BACKUP DATABASE
+   ========================================================= */
+
+export function exportDatabaseJSON(): string {
+  const database =
+    getDatabase();
+
+  return JSON.stringify(
+    database,
+    null,
+    2
+  );
+}
+
+export function importDatabaseJSON(
+  json: string
+): Database {
+  const parsed =
+    JSON.parse(json);
+
+  const database =
+    ensureDatabaseDefaults(
+      parsed
+    );
+
+  saveDatabase(
+    database
+  );
+
+  return database;
+}
+
+/* =========================================================
+   DOWNLOAD BACKUP
+   ========================================================= */
+
+export function downloadDatabaseBackup(): void {
+  if (
+    typeof window ===
+    "undefined"
+  ) {
+    return;
+  }
+
+  const json =
+    exportDatabaseJSON();
+
+  const blob =
+    new Blob(
+      [json],
+      {
+        type:
+          "application/json",
+      }
+    );
+
+  const url =
+    URL.createObjectURL(
+      blob
+    );
+
+  const anchor =
+    document.createElement(
+      "a"
+    );
+
+  anchor.href = url;
+
+  anchor.download =
+    `rumah-belajar-backup-${getTodayDateString()}.json`;
+
+  document.body.appendChild(
+    anchor
+  );
+
+  anchor.click();
+
+  document.body.removeChild(
+    anchor
+  );
+
+  URL.revokeObjectURL(
+    url
+  );
+}
+
+/* =========================================================
+   DATABASE VALIDATION
+   ========================================================= */
+
+export function validateDatabase(
+  database: unknown
+): database is Database {
+  if (
+    !database ||
+    typeof database !==
+      "object"
+  ) {
+    return false;
+  }
+
+  const db =
+    database as any;
+
+  const requiredArrays = [
+    "programs",
+    "students",
+    "tutors",
+    "sessions",
+    "studentLedger",
+    "payments",
+    "tutorLedger",
+    "slips",
+    "kas",
+    "otherIncomes",
+    "attendanceReports",
+    "schedules",
+  ];
+
+  return requiredArrays.every(
+    (key) =>
+      Array.isArray(db[key])
+  );
+}
+
+/* =========================================================
+   AUTO MIGRATION
+   ========================================================= */
+
+export function migrateDatabase(
+  database: Partial<Database>
+): Database {
+  const migrated =
+    ensureDatabaseDefaults(
+      database
+    );
+
+  migrated.version =
+    DB_VERSION;
+
+  migrated.lastUpdated =
+    new Date().toISOString();
+
+  return migrated;
+}
+
+/* =========================================================
+   CLEAR LOCAL CACHE
+   ========================================================= */
+
+export function clearLocalDatabase(): void {
+  safeRemoveItem(
+    DB_STORAGE_KEY
+  );
+}
+
+/* =========================================================
+   DUPLICATE PROTECTION
+   ========================================================= */
+
+export function hasDuplicateIds(
+  items: any[]
+): boolean {
+  const ids =
+    new Set<string>();
+
+  for (
+    const item of items
+  ) {
+    const id =
+      getObjectId(item);
+
+    if (!id) {
+      continue;
+    }
+
+    if (
+      ids.has(id)
+    ) {
+      return true;
+    }
+
+    ids.add(id);
+  }
+
+  return false;
+}
+
+export function removeDuplicateIds<
+  T
+>(
+  items: T[]
+): T[] {
+  const seen =
+    new Set<string>();
+
+  const result: T[] = [];
+
+  for (
+    const item of items
+  ) {
+    const id =
+      getObjectId(item);
+
+    if (!id) {
+      result.push(item);
+      continue;
+    }
+
+    if (
+      seen.has(id)
+    ) {
+      continue;
+    }
+
+    seen.add(id);
+
+    result.push(item);
+  }
+
+  return result;
+}
+
+/* =========================================================
+   CLEAN DATABASE
+   ========================================================= */
+
+export function cleanDatabase(
+  database?: Database
+): Database {
+  const db =
+    ensureDatabaseDefaults(
+      database ||
+        getDatabase()
+    );
+
+  return {
+    ...db,
+
+    programs:
+      removeDuplicateIds(
+        db.programs
+      ),
+
+    students:
+      removeDuplicateIds(
+        db.students
+      ),
+
+    tutors:
+      removeDuplicateIds(
+        db.tutors
+      ),
+
+    sessions:
+      removeDuplicateIds(
+        db.sessions
+      ),
+
+    studentLedger:
+      removeDuplicateIds(
+        db.studentLedger
+      ),
+
+    payments:
+      removeDuplicateIds(
+        db.payments
+      ),
+
+    tutorLedger:
+      removeDuplicateIds(
+        db.tutorLedger
+      ),
+
+    slips:
+      removeDuplicateIds(
+        db.slips
+      ),
+
+    kas:
+      removeDuplicateIds(
+        db.kas
+      ),
+
+    otherIncomes:
+      removeDuplicateIds(
+        db.otherIncomes
+      ),
+
+    attendanceReports:
+      removeDuplicateIds(
+        db.attendanceReports
+      ),
+
+    schedules:
+      removeDuplicateIds(
+        db.schedules
+      ),
+
+    raports:
+      removeDuplicateIds(
+        db.raports || []
+      ),
+
+    lastUpdated:
+      new Date().toISOString(),
+  };
+}
+
+/* =========================================================
+   AUTO CLEAN + SAVE
+   ========================================================= */
+
+export function cleanAndSaveDatabase(): Database {
+  const cleaned =
+    cleanDatabase();
+
+  return saveDatabase(
+    cleaned
+  );
+}
+
+export function generateUniqueId(
+  prefix = "ID"
+): string {
+  const timestamp = Date.now().toString(36);
+
+  const random = Math.random()
+    .toString(36)
+    .substring(2, 10)
+    .toUpperCase();
+
+  return `${prefix}-${timestamp}-${random}`;
+}
+
+export function filterByDateRange<T extends Record<string, any>>(
+  items: T[],
+  startDate?: string | Date | null,
+  endDate?: string | Date | null
+): T[] {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  if (!startDate && !endDate) {
+    return items;
+  }
+
+  const getDate = (item: T): Date | null => {
+    const value =
+      item.tanggal ??
+      item.date ??
+      item.createdAt ??
+      item.created_at;
+
+    if (!value) {
+      return null;
+    }
+
+    const date = new Date(value);
+
+    return Number.isNaN(date.getTime())
+      ? null
+      : date;
+  };
+
+  const start = startDate
+    ? new Date(startDate)
+    : null;
+
+  const end = endDate
+    ? new Date(endDate)
+    : null;
+
+  if (start) {
+    start.setHours(0, 0, 0, 0);
+  }
+
+  if (end) {
+    end.setHours(23, 59, 59, 999);
+  }
+
+  return items.filter((item) => {
+    const date = getDate(item);
+
+    if (!date) {
+      return false;
+    }
+
+    if (start && date < start) {
+      return false;
+    }
+
+    if (end && date > end) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+export function verifyAttendanceReport(
+  reportId: string,
+  catatanAdmin = ""
+): Database {
+  const database = getDatabase();
+
+  const report =
+    database.attendanceReports.find(
+      (item) =>
+        String(item.id) ===
+        String(reportId)
+    );
+
+  if (!report) {
+    return database;
+  }
+
+  const updatedReport: AttendanceReport = {
+    ...report,
+
+    status: "verified",
+
+    catatanAdmin,
+
+    tanggalProses:
+      getCurrentTimestamp(),
+
+    updatedAt:
+      getCurrentTimestamp(),
+  };
+
+  return saveDatabase({
+    ...database,
+
+    attendanceReports:
+      database.attendanceReports.map(
+        (item) =>
+          String(item.id) ===
+          String(reportId)
+            ? updatedReport
+            : item
+      ),
+
+    lastUpdated:
+      getCurrentTimestamp(),
+  });
+}
+
+export function undoVerifyAttendanceReport(
+  reportId: string,
+  catatanAdmin = ""
+): Database {
+  const database = getDatabase();
+
+  const report =
+    database.attendanceReports.find(
+      (item) =>
+        String(item.id) ===
+        String(reportId)
+    );
+
+  if (!report) {
+    return database;
+  }
+
+  const updatedReport: AttendanceReport = {
+    ...report,
+
+    status: "pending",
+
+    catatanAdmin,
+
+    tanggalProses:
+      getCurrentTimestamp(),
+
+    updatedAt:
+      getCurrentTimestamp(),
+  };
+
+  return saveDatabase({
+    ...database,
+
+    attendanceReports:
+      database.attendanceReports.map(
+        (item) =>
+          String(item.id) ===
+          String(reportId)
+            ? updatedReport
+            : item
+      ),
+
+    lastUpdated:
+      getCurrentTimestamp(),
+  });
+}
+
+export function deleteSessionTransaction(
+  sessionId: string
+): Database {
+  const database = getDatabase();
+
+  return saveDatabase({
+    ...database,
+
+    sessions:
+      database.sessions.filter(
+        (session) =>
+          String(session.id) !==
+          String(sessionId)
+      ),
+
+    lastUpdated:
+      getCurrentTimestamp(),
+  });
+}
+
+/* =========================================================
+   DEFAULT EXPORT
+   ========================================================= */
+
+
+export function checkDuplicateSession(
+  siswaId: string,
+  tutorId: string,
+  tanggal: string,
+  excludeSessionId?: string
+): boolean {
+  const database = getDatabase();
+
+  if (!siswaId || !tutorId || !tanggal) {
+    return false;
+  }
+
+  const normalizeDate = (value: unknown): string => {
+    if (!value) return "";
+
+    const text = String(value);
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+      return text;
+    }
+
+    const date = new Date(text);
+
+    if (Number.isNaN(date.getTime())) {
+      return text.substring(0, 10);
+    }
+
+    return `${date.getFullYear()}-${String(
+      date.getMonth() + 1
+    ).padStart(2, "0")}-${String(
+      date.getDate()
+    ).padStart(2, "0")}`;
+  };
+
+  const targetDate = normalizeDate(tanggal);
+
+  return database.sessions.some((session) => {
+    if (
+      excludeSessionId &&
+      String(session.id) === String(excludeSessionId)
+    ) {
+      return false;
+    }
+
+    const sessionSiswaId =
+      (session as any).siswaId ??
+      (session as any).idSiswa;
+
+    const sessionTutorId =
+      (session as any).tutorId ??
+      (session as any).idTutor;
+
+    const sessionDate = normalizeDate(
+      (session as any).tanggal ??
+      (session as any).date
+    );
+
+    return (
+      String(sessionSiswaId) === String(siswaId) &&
+      String(sessionTutorId) === String(tutorId) &&
+      sessionDate === targetDate
+    );
+  });
+}
+
+
+export function submitAttendanceReport(
+  report: any
+): Database {
+  const database = getDatabase();
+
+  if (!report) {
+    return database;
+  }
+
+  const reportId =
+    report.id ||
+    generateUniqueId("ATT");
+
+  const newReport = {
+    ...report,
+
+    id: reportId,
+
+    status:
+      report.status ||
+      "pending",
+
+    tanggal:
+      report.tanggal ||
+      getTodayDateString(),
+
+    createdAt:
+      report.createdAt ||
+      getCurrentTimestamp(),
+
+    updatedAt:
+      getCurrentTimestamp(),
+  };
+
+  const existingIndex =
+    database.attendanceReports.findIndex(
+      (item: any) =>
+        String(item.id) ===
+        String(reportId)
+    );
+
+  let attendanceReports;
+
+  if (existingIndex >= 0) {
+    attendanceReports =
+      database.attendanceReports.map(
+        (item: any, index: number) =>
+          index === existingIndex
+            ? newReport
+            : item
+      );
+  } else {
+    attendanceReports = [
+      ...database.attendanceReports,
+      newReport,
+    ];
+  }
+
+  return saveDatabase({
+    ...database,
+
+    attendanceReports,
+
+    lastUpdated:
+      getCurrentTimestamp(),
+  });
+}
+
+export default {
+  submitAttendanceReport,
+  checkDuplicateSession,
+  DB_ID,
+
+  DB_STORAGE_KEY,
+
+  createEmptyDatabase,
+
+  ensureDatabaseDefaults,
+
+  mergeDatabases,
+
+  getDatabase,
+
+  saveDatabase,
+
+  updateDatabase,
+
+  resetDatabase,
+
+  syncDatabase,
+
+  saveDatabaseToSupabase,
+
+  loadDatabaseFromSupabase,
+
+  addSessionTransaction,
+
+  addStudentLedgerTransaction,
+
+  addPaymentTransaction,
+
+  addTutorLedgerTransaction,
+
+  addSlip,
+
+  addKasTransaction,
+
+  addOtherIncome,
+
+  addAttendanceReport,
+
+  addSchedule,
+
+  addRaport,
+
+  formatRupiah,
+
+  getTodayDateString,
+
+  getCurrentTimestamp,
+
+  formatBulanTahun,
+
+  formatTanggalIndo,
+
+  safeGetItem,
+
+  safeSetItem,
+
+  safeRemoveItem,
+
+  generateId,
+
+  findStudentById,
+
+  findTutorById,
+
+  findProgramById,
+
+  findSessionById,
+
+  calculateStudentBalance,
+
+  calculateTutorBalance,
+
+  getDatabaseStatistics,
+
+  exportDatabaseJSON,
+
+  importDatabaseJSON,
+
+  downloadDatabaseBackup,
+
+  validateDatabase,
+
+  migrateDatabase,
+
+  clearLocalDatabase,
+
+  hasDuplicateIds,
+
+  removeDuplicateIds,
+
+  cleanDatabase,
+
+  cleanAndSaveDatabase,
+
+  setBroadcastMessage,
+
+  updateBroadcastMessageTransaction,
+
+  clearBroadcastMessage,
+
+  getKasLembagaBalance,
+
+  deleteRecordFromSupabase,
+
+  generateUniqueId,
+
+  getStudentBalance,
+
+  getTutorHonorBalance,
+
+  getTutorDepositBalance,
+
+  confirmTutorDepositHandover,
+  undoTutorDepositHandover,
+
+  payTutorHonorTransaction,
+
+  addGeneralExpenseTransaction,
+
+  addOtherIncomeTransaction,
+
+  filterByDateRange,
+
+  verifyAttendanceReport,
+
+  undoVerifyAttendanceReport,
+
+  deleteSessionTransaction,
+  };
+

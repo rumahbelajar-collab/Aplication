@@ -211,7 +211,7 @@ export default function AdminDashboard({
       return;
     }
     
-    if (!window.confirm("Apakah Anda yakin ingin mengubah kata sandi Administrator? Perubahan ini akan segera disinkronkan ke Supabase Cloud.")) {
+    if (!window.confirm("Apakah Anda yakin ingin mengubah kata sandi Administrator? Perubahan ini akan segera disinkronkan ke Cloud.")) {
       return;
     }
 
@@ -312,9 +312,9 @@ export default function AdminDashboard({
           setIsActionLoading(false);
           
           if (success) {
-            alert("Database berhasil dipulihkan dari file cadangan JSON dan disinkronkan ke Supabase Cloud!");
+            alert("Database berhasil dipulihkan dari file cadangan JSON dan disinkronkan ke Cloud!");
           } else {
-            alert("Database berhasil dipulihkan di penyimpanan lokal, namun gagal menyinkronkan ke cloud. Periksa koneksi Anda.");
+            alert("Database berhasil dipulihkan di penyimpanan lokal, namun gagal menyinkronkan ke Cloud. Periksa koneksi Anda.");
           }
         }
       } catch (err: any) {
