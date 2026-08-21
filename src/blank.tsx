@@ -326,10 +326,10 @@ export default function App() {
         </div>
         <div className="flex items-center gap-2 mb-2">
           <RefreshCw size={16} className="text-brand-400 animate-spin" />
-          <h3 className="text-base font-extrabold tracking-wide font-display text-white">Menghubungkan ke Supabase Cloud...</h3>
+          <h3 className="text-base font-extrabold tracking-wide font-display text-white">Menghubungkan ke Cloud...</h3>
         </div>
         <p className="text-xs text-slate-400 font-medium max-w-xs leading-relaxed">
-          Mengambil data terbaru dari server Supabase sebagai sumber data utama.
+          Mengambil data terbaru dari server sebagai sumber data utama.
         </p>
       </div>
     );

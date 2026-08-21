@@ -14,6 +14,10 @@
   RaportSiswa
 } from "../types";
 
+/* =========================================================
+   TYPES
+========================================================= */
+
 export type ProgramRecord = ProgramBelajar & {
   deskripsi?: string;
 };
@@ -25,19 +29,20 @@ export type TutorRecord = Tutor & {
   alamat?: string;
 };
 
-export type KasRecord = {
-  id: string;
-  tanggal: string;
-  tipe: string;
-  keterangan: string;
-  jumlah: number;
-  saldoBerjalan: number;
+export type KasRecord = KasLembaga & {
   referensiId?: string;
 };
 
 export type OtherIncomeRecord = PemasukanLain & {
   jenis?: string;
   nominal?: number;
+};
+
+export type ExpenseRecord = {
+  id: string;
+  tanggal: string;
+  keterangan: string;
+  jumlah: number;
 };
 
 export type ScheduleRecord = JadwalTutor & {
@@ -48,17 +53,7 @@ export type ScheduleRecord = JadwalTutor & {
   programId: string;
 };
 
-export type AttendanceRecord = {
-  id: string;
-  tanggal: string;
-  tutorId: string;
-  tutorNama: string;
-  siswaId: string;
-  siswaNama: string;
-  programId: string;
-  programNama: string;
-  fotoJurnal: string;
-  keterangan?: string;
+export type AttendanceRecord = LaporanKehadiran & {
   status?:
     | "pending"
     | "setuju"
@@ -66,42 +61,88 @@ export type AttendanceRecord = {
     | "disetujui"
     | "ditolak"
     | "diproses";
+
   catatanAdmin?: string;
   tanggalProses?: string;
 };
 
+/**
+ * =========================================================
+ * DATABASE
+ * =========================================================
+ *
+ * SUMBER DATA UTAMA:
+ *
+ * programs
+ * students
+ * tutors
+ * sessions
+ * payments
+ * slips
+ * otherIncomes
+ * expenses
+ * attendanceReports
+ * schedules
+ * raports
+ *
+ * LEDGER DI BAWAH ADALAH DERIVED DATA.
+ *
+ * studentLedger
+ * tutorLedger
+ * kas
+ *
+ * Ketiga ledger tersebut SELALU dibangun ulang
+ * dari sumber data utama.
+ */
 export interface Database {
   programs: ProgramRecord[];
   students: Siswa[];
   tutors: TutorRecord[];
+
   sessions: RiwayatPertemuan[];
-  studentLedger: TransaksiRekeningSiswa[];
+
   payments: PembayaranSiswa[];
-  tutorLedger: TransaksiHonorTutor[];
+
   slips: SlipGaji[];
-  kas: KasRecord[];
+
   otherIncomes: OtherIncomeRecord[];
+
+  expenses: ExpenseRecord[];
+
   attendanceReports: AttendanceRecord[];
+
   schedules: ScheduleRecord[];
-  raports?: RaportSiswa[];
-  broadcastMessage?: string;
-  adminPassword?: string;
-  lastUpdated?: string;
+
+  raports: RaportSiswa[];
 
   /**
-   * ID yang pernah dihapus.
-   *
-   * Sangat penting untuk sinkronisasi multi-device.
-   * Jangan pernah dihapus otomatis.
+   * DERIVED LEDGER
    */
-  deletedIds?: string[];
+  studentLedger: TransaksiRekeningSiswa[];
+  tutorLedger: TransaksiHonorTutor[];
+  kas: KasRecord[];
+
+  broadcastMessage: string;
+
+  adminPassword?: string;
+
+  lastUpdated: string;
+
+  /**
+   * Tombstone.
+   *
+   * ID yang sudah dihapus tidak boleh hidup kembali
+   * ketika local + remote di-merge.
+   */
+  deletedIds: string[];
 }
 
 /* =========================================================
    CONSTANT
 ========================================================= */
 
-export const DB_STORAGE_KEY = "rumah_belajar_db_v2";
+export const DB_STORAGE_KEY =
+  "rumah_belajar_db_v2";
 
 const DEFAULT_BROADCAST =
   "📢 PENGUMUMAN TUTOR: Mohon lakukan serah terima uang titipan pembayaran siswa kepada Staf Administrasi dan catat riwayat pertemuan secara tertib. Terima kasih!";
@@ -125,17 +166,26 @@ const BULAN_INDO = [
   "Desember"
 ];
 
-export function generateUniqueId(prefix: string): string {
-  const time = Date.now().toString(36).toUpperCase();
-  const random = Math.random()
-    .toString(36)
-    .slice(2, 10)
-    .toUpperCase();
+export function generateUniqueId(
+  prefix: string
+): string {
+  const time =
+    Date.now()
+      .toString(36)
+      .toUpperCase();
+
+  const random =
+    Math.random()
+      .toString(36)
+      .slice(2, 10)
+      .toUpperCase();
 
   return `${prefix}-${time}-${random}`;
 }
 
-export function formatRupiah(value: number): string {
+export function formatRupiah(
+  value: number
+): string {
   return (
     "Rp " +
     new Intl.NumberFormat("id-ID", {
@@ -145,31 +195,42 @@ export function formatRupiah(value: number): string {
   );
 }
 
-export function formatTanggalIndo(dateStr: string): string {
+export function formatTanggalIndo(
+  dateStr: string
+): string {
   if (!dateStr) return "-";
 
-  const parts = dateStr.split("-");
+  const parts =
+    dateStr.split("-");
 
   if (parts.length !== 3) {
     return dateStr;
   }
 
-  return `${parts[2].padStart(2, "0")}/${parts[1].padStart(
+  return `${parts[2].padStart(
+    2,
+    "0"
+  )}/${parts[1].padStart(
     2,
     "0"
   )}/${parts[0]}`;
 }
 
-export function formatBulanTahun(dateStr: string): string {
+export function formatBulanTahun(
+  dateStr: string
+): string {
   if (!dateStr) return "-";
 
-  const parts = dateStr.split("-");
+  const parts =
+    dateStr.split("-");
 
   if (parts.length >= 2) {
-    const monthIdx = parseInt(parts[1], 10) - 1;
+    const monthIndex =
+      parseInt(parts[1], 10) - 1;
 
     return `${
-      BULAN_INDO[monthIdx] || parts[1]
+      BULAN_INDO[monthIndex] ||
+      parts[1]
     } ${parts[0]}`;
   }
 
@@ -190,6 +251,65 @@ export function getTodayDateString(): string {
 }
 
 /* =========================================================
+   HELPERS
+========================================================= */
+
+function amount(
+  value: unknown
+): number {
+  const n = Number(value);
+
+  if (!Number.isFinite(n)) {
+    return 0;
+  }
+
+  return Math.max(0, n);
+}
+
+function uniqueStrings(
+  values: unknown[]
+): string[] {
+  return Array.from(
+    new Set(
+      values.filter(
+        (
+          value
+        ): value is string =>
+          typeof value ===
+            "string" &&
+          value.trim() !== ""
+      )
+    )
+  );
+}
+
+function cloneDatabase(
+  db: Database
+): Database {
+  return ensureDatabaseDefaults(
+    JSON.parse(
+      JSON.stringify(db)
+    )
+  );
+}
+
+function saveAndReturn(
+  db: Database
+): Database {
+  const normalized =
+    ensureDatabaseDefaults(db);
+
+  safeSetItem(
+    DB_STORAGE_KEY,
+    JSON.stringify(
+      normalized
+    )
+  );
+
+  return normalized;
+}
+
+/* =========================================================
    SAFE LOCAL STORAGE
 ========================================================= */
 
@@ -197,12 +317,15 @@ export function safeGetItem(
   key: string
 ): string | null {
   try {
-    return localStorage.getItem(key);
+    return localStorage.getItem(
+      key
+    );
   } catch (error) {
     console.warn(
       "[DB] localStorage get gagal:",
       error
     );
+
     return null;
   }
 }
@@ -212,7 +335,10 @@ export function safeSetItem(
   value: string
 ): void {
   try {
-    localStorage.setItem(key, value);
+    localStorage.setItem(
+      key,
+      value
+    );
   } catch (error) {
     console.warn(
       "[DB] localStorage set gagal:",
@@ -222,7 +348,7 @@ export function safeSetItem(
 }
 
 /* =========================================================
-   DATABASE DEFAULT
+   EMPTY DATABASE
 ========================================================= */
 
 export function generateCleanDatabase(): Database {
@@ -230,20 +356,30 @@ export function generateCleanDatabase(): Database {
     programs: [],
     students: [],
     tutors: [],
+
     sessions: [],
-    studentLedger: [],
     payments: [],
-    tutorLedger: [],
     slips: [],
-    kas: [],
+
     otherIncomes: [],
+    expenses: [],
+
     attendanceReports: [],
     schedules: [],
     raports: [],
 
-    broadcastMessage: DEFAULT_BROADCAST,
+    /**
+     * Derived.
+     */
+    studentLedger: [],
+    tutorLedger: [],
+    kas: [],
 
-    adminPassword: "admin123",
+    broadcastMessage:
+      DEFAULT_BROADCAST,
+
+    adminPassword:
+      "admin123",
 
     lastUpdated:
       new Date().toISOString(),
@@ -261,73 +397,119 @@ export function ensureDatabaseDefaults(
 ): Database {
   if (
     !parsed ||
-    typeof parsed !== "object"
+    typeof parsed !==
+      "object"
   ) {
     return generateCleanDatabase();
   }
 
   return {
-    programs: Array.isArray(parsed.programs)
-      ? parsed.programs
-      : [],
+    programs:
+      Array.isArray(
+        parsed.programs
+      )
+        ? parsed.programs
+        : [],
 
-    students: Array.isArray(parsed.students)
-      ? parsed.students
-      : [],
+    students:
+      Array.isArray(
+        parsed.students
+      )
+        ? parsed.students
+        : [],
 
-    tutors: Array.isArray(parsed.tutors)
-      ? parsed.tutors
-      : [],
+    tutors:
+      Array.isArray(
+        parsed.tutors
+      )
+        ? parsed.tutors
+        : [],
 
-    sessions: Array.isArray(parsed.sessions)
-      ? parsed.sessions
-      : [],
+    sessions:
+      Array.isArray(
+        parsed.sessions
+      )
+        ? parsed.sessions
+        : [],
 
-    studentLedger: Array.isArray(
-      parsed.studentLedger
-    )
-      ? parsed.studentLedger
-      : [],
+    payments:
+      Array.isArray(
+        parsed.payments
+      )
+        ? parsed.payments
+        : [],
 
-    payments: Array.isArray(parsed.payments)
-      ? parsed.payments
-      : [],
+    slips:
+      Array.isArray(
+        parsed.slips
+      )
+        ? parsed.slips
+        : [],
 
-    tutorLedger: Array.isArray(
-      parsed.tutorLedger
-    )
-      ? parsed.tutorLedger
-      : [],
+    otherIncomes:
+      Array.isArray(
+        parsed.otherIncomes
+      )
+        ? parsed.otherIncomes
+        : [],
 
-    slips: Array.isArray(parsed.slips)
-      ? parsed.slips
-      : [],
+    /**
+     * Database lama belum punya expenses.
+     */
+    expenses:
+      Array.isArray(
+        parsed.expenses
+      )
+        ? parsed.expenses
+        : [],
 
-    kas: Array.isArray(parsed.kas)
-      ? parsed.kas
-      : [],
+    attendanceReports:
+      Array.isArray(
+        parsed.attendanceReports
+      )
+        ? parsed.attendanceReports
+        : [],
 
-    otherIncomes: Array.isArray(
-      parsed.otherIncomes
-    )
-      ? parsed.otherIncomes
-      : [],
+    schedules:
+      Array.isArray(
+        parsed.schedules
+      )
+        ? parsed.schedules
+        : [],
 
-    attendanceReports: Array.isArray(
-      parsed.attendanceReports
-    )
-      ? parsed.attendanceReports
-      : [],
+    raports:
+      Array.isArray(
+        parsed.raports
+      )
+        ? parsed.raports
+        : [],
 
-    schedules: Array.isArray(
-      parsed.schedules
-    )
-      ? parsed.schedules
-      : [],
+    /**
+     * Ledger lama tetap dibaca
+     * untuk kompatibilitas.
+     *
+     * Tetapi setelah itu akan direbuild.
+     */
+    studentLedger:
+      Array.isArray(
+        parsed.studentLedger
+      )
+        ? parsed.studentLedger
+        : [],
 
-    raports: Array.isArray(parsed.raports)
-      ? parsed.raports
-      : [],
+    tutorLedger:
+      Array.isArray(
+        parsed.tutorLedger
+      )
+        ? parsed.tutorLedger
+        : [],
+
+    kas:
+      Array.isArray(
+        parsed.kas
+      )
+        ? parsed.kas
+        : [],
 
     broadcastMessage:
       parsed.broadcastMessage ??
@@ -341,23 +523,14 @@ export function ensureDatabaseDefaults(
       parsed.lastUpdated ??
       new Date().toISOString(),
 
-    /**
-     * PENTING:
-     * deletedIds dipertahankan.
-     */
-    deletedIds: Array.isArray(
-      parsed.deletedIds
-    )
-      ? Array.from(
-          new Set(
-            parsed.deletedIds.filter(
-              (id: any) =>
-                typeof id === "string" &&
-                id.trim()
-            )
+    deletedIds:
+      Array.isArray(
+        parsed.deletedIds
+      )
+        ? uniqueStrings(
+            parsed.deletedIds
           )
-        )
-      : []
+        : []
   };
 }
 
@@ -368,11 +541,20 @@ export function ensureDatabaseDefaults(
 export function getDatabase(): Database {
   try {
     const raw =
-      safeGetItem(DB_STORAGE_KEY);
+      safeGetItem(
+        DB_STORAGE_KEY
+      );
 
     if (raw) {
-      return ensureDatabaseDefaults(
-        JSON.parse(raw)
+      const parsed =
+        JSON.parse(raw);
+
+      return saveAndReturn(
+        recalculateAllLedgers(
+          ensureDatabaseDefaults(
+            parsed
+          )
+        )
       );
     }
   } catch (error) {
@@ -393,24 +575,25 @@ export function getDatabase(): Database {
 export function saveDatabase(
   db: Database
 ): void {
-  const sanitized =
+  const normalized =
     ensureDatabaseDefaults(db);
 
   safeSetItem(
     DB_STORAGE_KEY,
-    JSON.stringify(sanitized)
+    JSON.stringify(
+      normalized
+    )
   );
 }
 
 export function updateDatabase(
   db: Database
 ): Database {
-  const sanitized =
-    ensureDatabaseDefaults(db);
-
-  saveDatabase(sanitized);
-
-  return sanitized;
+  return saveAndReturn(
+    recalculateAllLedgers(
+      db
+    )
+  );
 }
 
 export function getLocalDatabase(): Database {
@@ -420,7 +603,9 @@ export function getLocalDatabase(): Database {
 export function saveLocalDatabase(
   db: Database
 ): void {
-  saveDatabase(db);
+  saveDatabase(
+    recalculateAllLedgers(db)
+  );
 }
 
 /* =========================================================
@@ -430,46 +615,24 @@ export function saveLocalDatabase(
 export function clearPrototypeData(
   currentDb?: Database
 ): Database {
-  const cleanDb: Database = {
-    programs: [],
-    students: [],
-    tutors: [],
-    sessions: [],
-    studentLedger: [],
-    payments: [],
-    tutorLedger: [],
-    slips: [],
-    kas: [],
-    otherIncomes: [],
-    attendanceReports: [],
-    schedules: [],
-    raports: [],
+  const clean =
+    generateCleanDatabase();
 
-    broadcastMessage:
-      currentDb?.broadcastMessage ||
-      DEFAULT_BROADCAST,
+  clean.broadcastMessage =
+    currentDb?.broadcastMessage ||
+    DEFAULT_BROADCAST;
 
-    adminPassword:
-      currentDb?.adminPassword ||
-      "admin123",
+  clean.adminPassword =
+    currentDb?.adminPassword ||
+    "admin123";
 
-    lastUpdated:
-      new Date().toISOString(),
-
-    /**
-     * Jangan membawa deletedIds lama
-     * ketika benar-benar melakukan reset database.
-     */
-    deletedIds: []
-  };
-
-  saveDatabase(cleanDb);
-
-  return cleanDb;
+  return saveAndReturn(
+    clean
+  );
 }
 
 /* =========================================================
-   SESSION
+   SESSION DUPLICATE
 ========================================================= */
 
 export function checkDuplicateSession(
@@ -481,17 +644,25 @@ export function checkDuplicateSession(
     programId?: string;
   }
 ): boolean {
-  return (
-    db.sessions || []
-  ).some(
-    s =>
-      s.tanggal === data.tanggal &&
-      s.siswaId === data.siswaId &&
-      s.tutorId === data.tutorId &&
-      (!data.programId ||
-        s.programId === data.programId)
+  return db.sessions.some(
+    session =>
+      session.tanggal ===
+        data.tanggal &&
+      session.siswaId ===
+        data.siswaId &&
+      session.tutorId ===
+        data.tutorId &&
+      (
+        !data.programId ||
+        session.programId ===
+          data.programId
+      )
   );
 }
+
+/* =========================================================
+   SESSION
+========================================================= */
 
 export function addSessionTransaction(
   db: Database,
@@ -503,25 +674,35 @@ export function addSessionTransaction(
     catatan?: string;
   }
 ): Database {
-  const base =
-    ensureDatabaseDefaults(db);
+  const next =
+    cloneDatabase(db);
 
   const student =
-    base.students.find(
-      s => s.id === data.siswaId
+    next.students.find(
+      s =>
+        s.id ===
+        data.siswaId
     );
 
   const tutor =
-    base.tutors.find(
-      t => t.id === data.tutorId
+    next.tutors.find(
+      t =>
+        t.id ===
+        data.tutorId
     );
 
   const program =
-    base.programs.find(
-      p => p.id === data.programId
+    next.programs.find(
+      p =>
+        p.id ===
+        data.programId
     );
 
-  if (!student || !tutor || !program) {
+  if (
+    !student ||
+    !tutor ||
+    !program
+  ) {
     throw new Error(
       "Data siswa, tutor, atau program tidak ditemukan."
     );
@@ -529,7 +710,7 @@ export function addSessionTransaction(
 
   if (
     checkDuplicateSession(
-      base,
+      next,
       data
     )
   ) {
@@ -538,40 +719,55 @@ export function addSessionTransaction(
     );
   }
 
-  const nextDb =
-    ensureDatabaseDefaults(
-      JSON.parse(
-        JSON.stringify(base)
-      )
-    );
-
-  const newId =
+  const sessionId =
     generateUniqueId("RP");
 
-  nextDb.sessions = [
-    {
-      id: newId,
-      tanggal: data.tanggal,
-      siswaId: student.id,
-      siswaNama: student.nama,
-      tutorId: tutor.id,
-      tutorNama: tutor.nama,
-      programId: program.id,
-      programNama: program.nama,
-      tarifSiswaSnapshot:
-        Number(program.tarifSiswa) || 0,
-      honorTutorSnapshot:
-        Number(program.honorTutor) || 0,
-      catatan:
-        data.catatan ||
-        `Sesi pembelajaran ${program.nama}`
-    },
-    ...nextDb.sessions
-  ];
+  next.sessions.unshift({
+    id: sessionId,
 
+    tanggal:
+      data.tanggal,
+
+    siswaId:
+      student.id,
+
+    siswaNama:
+      student.nama,
+
+    tutorId:
+      tutor.id,
+
+    tutorNama:
+      tutor.nama,
+
+    programId:
+      program.id,
+
+    programNama:
+      program.nama,
+
+    tarifSiswaSnapshot:
+      amount(
+        program.tarifSiswa
+      ),
+
+    honorTutorSnapshot:
+      amount(
+        program.honorTutor
+      ),
+
+    catatan:
+      data.catatan ||
+      `Sesi pembelajaran ${program.nama}`
+  });
+
+  /**
+   * Program siswa hanya diisi
+   * jika sebelumnya kosong.
+   */
   if (!student.programId) {
-    nextDb.students =
-      nextDb.students.map(
+    next.students =
+      next.students.map(
         s =>
           s.id === student.id
             ? {
@@ -583,36 +779,19 @@ export function addSessionTransaction(
       );
   }
 
-  nextDb.studentLedger.push({
-    id: generateUniqueId("TXS"),
-    tanggal: data.tanggal,
-    siswaId: student.id,
-    tipe: "debit",
-    keterangan: `Riwayat Pertemuan [${newId}] - ${program.nama}`,
-    jumlah:
-      Number(program.tarifSiswa) || 0,
-    saldoBerjalan: 0,
-    referensiId: newId
-  });
+  /**
+   * PENTING:
+   *
+   * Tidak membuat ledger secara manual.
+   *
+   * Ledger akan dibuat oleh
+   * recalculateAllLedgers().
+   */
 
-  nextDb.tutorLedger.push({
-    id: generateUniqueId("TXT"),
-    tanggal: data.tanggal,
-    tutorId: tutor.id,
-    tipe: "kredit",
-    keterangan:
-      `Riwayat Pertemuan [${newId}] - Siswa: ${student.nama} - ${program.nama}`,
-    jumlah:
-      Number(program.honorTutor) || 0,
-    saldoBerjalan: 0,
-    referensiId: newId
-  });
-
-  nextDb.lastUpdated =
-    new Date().toISOString();
-
-  return recalculateAllLedgers(
-    nextDb
+  return saveAndReturn(
+    recalculateAllLedgers(
+      next
+    )
   );
 }
 
@@ -630,16 +809,14 @@ export function addPaymentTransaction(
     tutorId?: string;
   }
 ): Database {
-  const nextDb =
-    ensureDatabaseDefaults(
-      JSON.parse(
-        JSON.stringify(db)
-      )
-    );
+  const next =
+    cloneDatabase(db);
 
   const student =
-    nextDb.students.find(
-      s => s.id === data.siswaId
+    next.students.find(
+      s =>
+        s.id ===
+        data.siswaId
     );
 
   if (!student) {
@@ -648,101 +825,126 @@ export function addPaymentTransaction(
     );
   }
 
-  const tutor = data.tutorId
-    ? nextDb.tutors.find(
-        t => t.id === data.tutorId
-      )
-    : undefined;
+  const jumlah =
+    amount(data.jumlah);
 
-  const payId =
-    generateUniqueId("PAY");
-
-  const newPayment: PembayaranSiswa = {
-    id: payId,
-    tanggal: data.tanggal,
-    siswaId: student.id,
-    siswaNama: student.nama,
-    jumlah:
-      Number(data.jumlah) || 0,
-    metode: data.metode,
-    tutorId: data.tutorId,
-    tutorNama: tutor
-      ? tutor.nama
-      : undefined,
-    statusTitipan:
-      data.metode === "tutor"
-        ? "pending"
-        : "diserahkan",
-    tanggalSerah:
-      undefined
-  };
-
-  nextDb.payments = [
-    newPayment,
-    ...nextDb.payments
-  ];
-
-  if (data.metode === "admin") {
-    const current =
-      getStudentBalance(
-        nextDb,
-        student.id
-      );
-
-    nextDb.studentLedger.push({
-      id: generateUniqueId(
-        "TXS"
-      ),
-      tanggal: data.tanggal,
-      siswaId: student.id,
-      tipe: "kredit",
-      keterangan:
-        "Pembayaran langsung ke Admin",
-      jumlah:
-        Number(data.jumlah) || 0,
-      saldoBerjalan:
-        current -
-        (Number(data.jumlah) || 0),
-      referensiId: payId
-    });
-
-    const kas =
-      getKasLembagaBalance(
-        nextDb
-      );
-
-    nextDb.kas.push({
-      id: generateUniqueId(
-        "KAS"
-      ),
-      tanggal: data.tanggal,
-      tipe: "masuk",
-      keterangan:
-        `Pembayaran Siswa [${payId}] - ${student.nama}`,
-      jumlah:
-        Number(data.jumlah) || 0,
-      saldoBerjalan:
-        kas +
-        (Number(data.jumlah) || 0),
-      referensiId: payId
-    });
+  if (jumlah <= 0) {
+    throw new Error(
+      "Nominal pembayaran harus lebih dari 0."
+    );
   }
 
-  nextDb.lastUpdated =
-    new Date().toISOString();
-
-  const result =
-    recalculateAllLedgers(
-      nextDb
+  if (
+    data.metode === "tutor" &&
+    !data.tutorId
+  ) {
+    throw new Error(
+      "Tutor wajib dipilih untuk pembayaran melalui tutor."
     );
+  }
 
-  saveDatabase(result);
+  const tutor =
+    data.tutorId
+      ? next.tutors.find(
+          t =>
+            t.id ===
+            data.tutorId
+        )
+      : undefined;
 
-  return result;
+  if (
+    data.metode === "tutor" &&
+    !tutor
+  ) {
+    throw new Error(
+      "Tutor tidak ditemukan."
+    );
+  }
+
+  const paymentId =
+    generateUniqueId("PAY");
+
+  const payment: PembayaranSiswa =
+    {
+      id: paymentId,
+
+      tanggal:
+        data.tanggal,
+
+      siswaId:
+        student.id,
+
+      siswaNama:
+        student.nama,
+
+      jumlah,
+
+      metode:
+        data.metode,
+
+      tutorId:
+        data.tutorId,
+
+      tutorNama:
+        tutor?.nama,
+
+      statusTitipan:
+        data.metode ===
+        "tutor"
+          ? "pending"
+          : "diserahkan",
+
+      tanggalSerah:
+        data.metode ===
+        "admin"
+          ? data.tanggal
+          : undefined
+    };
+
+  next.payments.unshift(
+    payment
+  );
+
+  return saveAndReturn(
+    recalculateAllLedgers(
+      next
+    )
+  );
 }
 
 /* =========================================================
    TUTOR DEPOSIT
+========================================================= */
+
+export function getTutorDepositBalance(
+  db: Database,
+  tutorId: string
+): number {
+  return db.payments
+    .filter(
+      payment =>
+        payment.metode ===
+          "tutor" &&
+        payment.tutorId ===
+          tutorId &&
+        payment.statusTitipan ===
+          "pending"
+    )
+    .reduce(
+      (
+        total,
+        payment
+      ) =>
+        total +
+        amount(
+          payment.jumlah
+        ),
+      0
+    );
+}
+
+/* =========================================================
+   CONFIRM TUTOR DEPOSIT
 ========================================================= */
 
 export function confirmTutorDepositHandover(
@@ -750,140 +952,110 @@ export function confirmTutorDepositHandover(
   paymentId: string,
   tanggalSerah: string
 ): Database {
-  const nextDb =
-    ensureDatabaseDefaults(
-      JSON.parse(
-        JSON.stringify(db)
-      )
+  const next =
+    cloneDatabase(db);
+
+  const index =
+    next.payments.findIndex(
+      p =>
+        p.id === paymentId
     );
 
-  const paymentIdx =
-    nextDb.payments.findIndex(
-      p => p.id === paymentId
-    );
-
-  if (paymentIdx === -1) {
+  if (index === -1) {
     return db;
   }
 
   const payment =
-    nextDb.payments[paymentIdx];
+    next.payments[index];
 
   if (
-    payment.metode !== "tutor" ||
-    payment.statusTitipan ===
-      "diserahkan"
+    payment.metode !==
+    "tutor"
   ) {
     return db;
   }
 
-  nextDb.payments[paymentIdx] = {
+  if (
+    payment.statusTitipan ===
+    "diserahkan"
+  ) {
+    return db;
+  }
+
+  next.payments[index] = {
     ...payment,
+
     statusTitipan:
       "diserahkan",
+
     tanggalSerah
   };
 
-  nextDb.studentLedger.push({
-    id: generateUniqueId(
-      "TXS"
-    ),
-    tanggal: tanggalSerah,
-    siswaId: payment.siswaId,
-    tipe: "kredit",
-    keterangan:
-      `Penerimaan Pembayaran via Tutor: ${payment.tutorNama}`,
-    jumlah:
-      Number(payment.jumlah) || 0,
-    saldoBerjalan: 0,
-    referensiId: payment.id
-  });
+  /**
+   * Tidak membuat ledger manual.
+   *
+   * recalculateAllLedgers()
+   * akan otomatis memasukkan:
+   *
+   * - kredit siswa
+   * - kas masuk
+   */
 
-  nextDb.kas.push({
-    id: generateUniqueId(
-      "KAS"
-    ),
-    tanggal: tanggalSerah,
-    tipe: "masuk",
-    keterangan:
-      `Penerimaan Titipan Tutor [${payment.id}] - ${payment.tutorNama} (Siswa: ${payment.siswaNama})`,
-    jumlah:
-      Number(payment.jumlah) || 0,
-    saldoBerjalan: 0,
-    referensiId: payment.id
-  });
-
-  const result =
+  return saveAndReturn(
     recalculateAllLedgers(
-      nextDb
-    );
-
-  saveDatabase(result);
-
-  return result;
+      next
+    )
+  );
 }
+
+/* =========================================================
+   UNDO TUTOR DEPOSIT
+========================================================= */
 
 export function undoTutorDepositHandover(
   db: Database,
   paymentId: string
 ): Database {
-  const nextDb =
-    ensureDatabaseDefaults(
-      JSON.parse(
-        JSON.stringify(db)
-      )
+  const next =
+    cloneDatabase(db);
+
+  const index =
+    next.payments.findIndex(
+      p =>
+        p.id === paymentId
     );
 
-  const paymentIdx =
-    nextDb.payments.findIndex(
-      p => p.id === paymentId
-    );
-
-  if (paymentIdx === -1) {
+  if (index === -1) {
     return db;
   }
 
   const payment =
-    nextDb.payments[paymentIdx];
+    next.payments[index];
 
   if (
-    payment.metode !== "tutor" ||
+    payment.metode !==
+      "tutor" ||
     payment.statusTitipan !==
       "diserahkan"
   ) {
     return db;
   }
 
-  nextDb.payments[paymentIdx] = {
+  next.payments[index] = {
     ...payment,
+
     statusTitipan:
       "pending",
+
     tanggalSerah:
       undefined
   };
 
-  nextDb.studentLedger =
-    nextDb.studentLedger.filter(
-      tx =>
-        tx.referensiId !==
-        paymentId
-    );
-
-  nextDb.kas =
-    nextDb.kas.filter(
-      k =>
-        k.referensiId !==
-        paymentId
-    );
-
-  const result =
+  return saveAndReturn(
     recalculateAllLedgers(
-      nextDb
-    );
-
-  saveDatabase(result);
-
-  return result;
+      next
+    )
+  );
 }
 
 /* =========================================================
@@ -902,16 +1074,14 @@ export function payTutorHonorTransaction(
     keteranganPotongan?: string;
   }
 ): Database {
-  const nextDb =
-    ensureDatabaseDefaults(
-      JSON.parse(
-        JSON.stringify(db)
-      )
-    );
+  const next =
+    cloneDatabase(db);
 
   const tutor =
-    nextDb.tutors.find(
-      t => t.id === data.tutorId
+    next.tutors.find(
+      t =>
+        t.id ===
+        data.tutorId
     );
 
   if (!tutor) {
@@ -920,88 +1090,77 @@ export function payTutorHonorTransaction(
     );
   }
 
+  const gross =
+    amount(data.jumlah);
+
+  const potongan =
+    Math.min(
+      gross,
+      amount(
+        data.potongan
+      )
+    );
+
+  const netPaid =
+    gross - potongan;
+
+  if (gross <= 0) {
+    throw new Error(
+      "Nominal honor harus lebih dari 0."
+    );
+  }
+
   const slipId =
     generateUniqueId("SG");
 
-  const potonganAmt =
-    Number(data.potongan) || 0;
-
-  const gross =
-    Number(data.jumlah) || 0;
-
-  const netPaid =
-    Math.max(
-      0,
-      gross - potonganAmt
-    );
-
-  const newSlip: SlipGaji = {
+  const slip: SlipGaji = {
     id: slipId,
-    tanggal: data.tanggal,
-    tutorId: tutor.id,
-    tutorNama: tutor.nama,
-    jumlah: netPaid,
-    periode: data.periode,
+
+    tanggal:
+      data.tanggal,
+
+    tutorId:
+      tutor.id,
+
+    tutorNama:
+      tutor.nama,
+
+    jumlah:
+      netPaid,
+
+    periode:
+      data.periode,
+
     catatan:
       data.catatan ||
       "Pembayaran Honor Tutor",
-    potongan: potonganAmt,
+
+    potongan,
+
     keteranganPotongan:
       data.keteranganPotongan ||
       "",
-    totalHonor: gross
+
+    totalHonor:
+      gross
   };
 
-  nextDb.slips = [
-    newSlip,
-    ...nextDb.slips
-  ];
+  next.slips.unshift(
+    slip
+  );
 
-  nextDb.tutorLedger.push({
-    id: generateUniqueId(
-      "TXT"
-    ),
-    tanggal: data.tanggal,
-    tutorId: tutor.id,
-    tipe: "debit",
-    keterangan:
-      potonganAmt > 0
-        ? `Pembayaran Honor [${slipId}] (Potongan: ${formatRupiah(
-            potonganAmt
-          )}) - Periode ${data.periode}`
-        : `Pembayaran Honor [${slipId}] - Periode ${data.periode}`,
-    jumlah: gross,
-    saldoBerjalan: 0,
-    referensiId: slipId
-  });
+  /**
+   * Tidak membuat tutorLedger
+   * dan kas secara manual.
+   *
+   * Keduanya dibangun dari slips.
+   */
 
-  nextDb.kas.push({
-    id: generateUniqueId(
-      "KAS"
-    ),
-    tanggal: data.tanggal,
-    tipe: "keluar",
-    keterangan:
-      potonganAmt > 0
-        ? `Pembayaran Honor Tutor [${slipId}] - ${tutor.nama} (Bersih: ${formatRupiah(
-            netPaid
-          )}, Potongan: ${formatRupiah(
-            potonganAmt
-          )})`
-        : `Pembayaran Honor Tutor [${slipId}] - ${tutor.nama}`,
-    jumlah: gross,
-    saldoBerjalan: 0,
-    referensiId: slipId
-  });
-
-  const result =
+  return saveAndReturn(
     recalculateAllLedgers(
-      nextDb
-    );
-
-  saveDatabase(result);
-
-  return result;
+      next
+    )
+  );
 }
 
 /* =========================================================
@@ -1016,119 +1175,200 @@ export function addGeneralExpenseTransaction(
     jumlah: number;
   }
 ): Database {
-  const nextDb =
-    ensureDatabaseDefaults(
-      JSON.parse(
-        JSON.stringify(db)
-      )
-    );
+  const next =
+    cloneDatabase(db);
 
-  const expId =
+  const jumlah =
+    amount(data.jumlah);
+
+  if (jumlah <= 0) {
+    throw new Error(
+      "Nominal pengeluaran harus lebih dari 0."
+    );
+  }
+
+  const expenseId =
     generateUniqueId("EXP");
 
-  nextDb.kas.push({
-    id: generateUniqueId(
-      "KAS"
-    ),
-    tanggal: data.tanggal,
-    tipe: "keluar",
+  next.expenses.unshift({
+    id: expenseId,
+
+    tanggal:
+      data.tanggal,
+
     keterangan:
-      `Pengeluaran Operasional [${expId}] - ${data.keterangan}`,
-    jumlah:
-      Number(data.jumlah) || 0,
-    saldoBerjalan: 0,
-    referensiId: expId
+      data.keterangan,
+
+    jumlah
   });
 
-  const result =
+  return saveAndReturn(
     recalculateAllLedgers(
-      nextDb
+      next
+    )
+  );
+}
+
+/* =========================================================
+   OTHER INCOME
+========================================================= */
+
+export function addOtherIncomeTransaction(
+  db: Database,
+  data: {
+    tanggal: string;
+    jenis: string;
+    nominal: number;
+    keterangan?: string;
+  }
+): Database {
+  const next =
+    cloneDatabase(db);
+
+  const nominal =
+    amount(data.nominal);
+
+  if (nominal <= 0) {
+    throw new Error(
+      "Nominal pemasukan harus lebih dari 0."
     );
+  }
 
-  saveDatabase(result);
+  const id =
+    generateUniqueId("PML");
 
-  return result;
+  next.otherIncomes.unshift({
+    id,
+
+    tanggal:
+      data.tanggal,
+
+    sumber:
+      data.jenis,
+
+    jumlah:
+      nominal,
+
+    jenis:
+      data.jenis,
+
+    nominal,
+
+    keterangan:
+      data.keterangan
+  });
+
+  return saveAndReturn(
+    recalculateAllLedgers(
+      next
+    )
+  );
 }
 
 /* =========================================================
    BALANCE
 ========================================================= */
 
+/**
+ * Saldo siswa:
+ *
+ * debit  = tagihan
+ * kredit = pembayaran
+ *
+ * POSITIF:
+ * siswa masih memiliki tagihan.
+ *
+ * NEGATIF:
+ * siswa kelebihan pembayaran.
+ */
 export function getStudentBalance(
   db: Database,
   studentId: string
 ): number {
-  return (
-    db.studentLedger || []
-  )
+  return db.studentLedger
     .filter(
       tx =>
-        tx.siswaId === studentId
+        tx.siswaId ===
+        studentId
     )
     .reduce(
-      (sum, tx) =>
-        sum +
-        (tx.tipe === "debit"
-          ? Number(tx.jumlah) || 0
-          : -(Number(tx.jumlah) || 0)),
+      (
+        total,
+        tx
+      ) =>
+        total +
+        (
+          tx.tipe ===
+          "debit"
+            ? amount(
+                tx.jumlah
+              )
+            : -amount(
+                tx.jumlah
+              )
+        ),
       0
     );
 }
 
+/**
+ * Honor tutor:
+ *
+ * kredit = honor diperoleh
+ * debit  = honor dibayar
+ */
 export function getTutorHonorBalance(
   db: Database,
   tutorId: string
 ): number {
-  return (
-    db.tutorLedger || []
-  )
+  return db.tutorLedger
     .filter(
       tx =>
-        tx.tutorId === tutorId
+        tx.tutorId ===
+        tutorId
     )
     .reduce(
-      (sum, tx) =>
-        sum +
-        (tx.tipe === "kredit"
-          ? Number(tx.jumlah) || 0
-          : -(Number(tx.jumlah) || 0)),
+      (
+        total,
+        tx
+      ) =>
+        total +
+        (
+          tx.tipe ===
+          "kredit"
+            ? amount(
+                tx.jumlah
+              )
+            : -amount(
+                tx.jumlah
+              )
+        ),
       0
     );
 }
 
-export function getTutorDepositBalance(
-  db: Database,
-  tutorId: string
-): number {
-  return (
-    db.payments || []
-  )
-    .filter(
-      p =>
-        p.metode === "tutor" &&
-        p.tutorId === tutorId &&
-        p.statusTitipan ===
-          "pending"
-    )
-    .reduce(
-      (sum, p) =>
-        sum +
-        (Number(p.jumlah) || 0),
-      0
-    );
-}
-
+/**
+ * Saldo kas lembaga.
+ */
 export function getKasLembagaBalance(
   db: Database
 ): number {
-  return (
-    db.kas || []
-  ).reduce(
-    (sum, tx) =>
-      sum +
-      (tx.tipe === "masuk"
-        ? Number(tx.jumlah) || 0
-        : -(Number(tx.jumlah) || 0)),
+  return db.kas.reduce(
+    (
+      total,
+      tx
+    ) =>
+      total +
+      (
+        tx.tipe ===
+        "masuk"
+          ? amount(
+              tx.jumlah
+            )
+          : -amount(
+              tx.jumlah
+            )
+      ),
     0
   );
 }
@@ -1138,7 +1378,9 @@ export function getKasLembagaBalance(
 ========================================================= */
 
 export function filterByDateRange<
-  T extends { tanggal: string }
+  T extends {
+    tanggal: string;
+  }
 >(
   items: T[],
   rangeType:
@@ -1153,14 +1395,28 @@ export function filterByDateRange<
     getTodayDateString()
 ): T[] {
   const base =
-    new Date(baseDate);
+    new Date(
+      `${baseDate}T00:00:00`
+    );
 
   let startStr = "";
   let endStr = "";
 
-  if (rangeType === "hari") {
-    startStr = baseDate;
-    endStr = baseDate;
+  const pad =
+    (n: number) =>
+      String(n).padStart(
+        2,
+        "0"
+      );
+
+  if (
+    rangeType === "hari"
+  ) {
+    startStr =
+      baseDate;
+
+    endStr =
+      baseDate;
   }
 
   else if (
@@ -1172,12 +1428,18 @@ export function filterByDateRange<
     const diff =
       base.getDate() -
       day +
-      (day === 0 ? -6 : 1);
+      (
+        day === 0
+          ? -6
+          : 1
+      );
 
     const monday =
       new Date(base);
 
-    monday.setDate(diff);
+    monday.setDate(
+      diff
+    );
 
     const sunday =
       new Date(monday);
@@ -1185,9 +1447,6 @@ export function filterByDateRange<
     sunday.setDate(
       monday.getDate() + 6
     );
-
-    const pad = (n: number) =>
-      String(n).padStart(2, "0");
 
     startStr =
       `${monday.getFullYear()}-${pad(
@@ -1220,9 +1479,6 @@ export function filterByDateRange<
         0
       ).getDate();
 
-    const pad = (n: number) =>
-      String(n).padStart(2, "0");
-
     startStr =
       `${year}-${pad(
         month + 1
@@ -1231,7 +1487,9 @@ export function filterByDateRange<
     endStr =
       `${year}-${pad(
         month + 1
-      )}-${pad(lastDay)}`;
+      )}-${pad(
+        lastDay
+      )}`;
   }
 
   else if (
@@ -1245,12 +1503,20 @@ export function filterByDateRange<
   }
 
   else if (
-    rangeType === "custom" &&
-    customStart &&
-    customEnd
+    rangeType === "custom"
   ) {
-    startStr = customStart;
-    endStr = customEnd;
+    if (
+      !customStart ||
+      !customEnd
+    ) {
+      return items;
+    }
+
+    startStr =
+      customStart;
+
+    endStr =
+      customEnd;
   }
 
   else {
@@ -1259,77 +1525,11 @@ export function filterByDateRange<
 
   return items.filter(
     item =>
-      item.tanggal >= startStr &&
-      item.tanggal <= endStr
+      item.tanggal >=
+        startStr &&
+      item.tanggal <=
+        endStr
   );
-}
-
-/* =========================================================
-   OTHER INCOME
-========================================================= */
-
-export function addOtherIncomeTransaction(
-  db: Database,
-  data: {
-    tanggal: string;
-    jenis: string;
-    nominal: number;
-    keterangan?: string;
-  }
-): Database {
-  const nextDb =
-    ensureDatabaseDefaults(
-      JSON.parse(
-        JSON.stringify(db)
-      )
-    );
-
-  const newId =
-    generateUniqueId("PML");
-
-  nextDb.otherIncomes = [
-    {
-      id: newId,
-      tanggal: data.tanggal,
-      sumber: data.jenis,
-      jumlah:
-        Number(data.nominal) || 0,
-      jenis: data.jenis,
-      nominal:
-        Number(data.nominal) || 0,
-      keterangan:
-        data.keterangan
-    },
-    ...nextDb.otherIncomes
-  ];
-
-  nextDb.kas.push({
-    id: generateUniqueId(
-      "KAS"
-    ),
-    tanggal: data.tanggal,
-    tipe: "masuk",
-    keterangan:
-      `Pemasukan Lain [${newId}] - ${data.jenis}${
-        data.keterangan
-          ? " - " +
-            data.keterangan
-          : ""
-      }`,
-    jumlah:
-      Number(data.nominal) || 0,
-    saldoBerjalan: 0,
-    referensiId: newId
-  });
-
-  const result =
-    recalculateAllLedgers(
-      nextDb
-    );
-
-  saveDatabase(result);
-
-  return result;
 }
 
 /* =========================================================
@@ -1347,26 +1547,28 @@ export function submitAttendanceReport(
     keterangan?: string;
   }
 ): Database {
-  const nextDb =
-    ensureDatabaseDefaults(
-      JSON.parse(
-        JSON.stringify(db)
-      )
-    );
+  const next =
+    cloneDatabase(db);
 
   const tutor =
-    nextDb.tutors.find(
-      t => t.id === data.tutorId
+    next.tutors.find(
+      t =>
+        t.id ===
+        data.tutorId
     );
 
   const student =
-    nextDb.students.find(
-      s => s.id === data.siswaId
+    next.students.find(
+      s =>
+        s.id ===
+        data.siswaId
     );
 
   const program =
-    nextDb.programs.find(
-      p => p.id === data.programId
+    next.programs.find(
+      p =>
+        p.id ===
+        data.programId
     );
 
   if (
@@ -1374,72 +1576,142 @@ export function submitAttendanceReport(
     !student ||
     !program
   ) {
-    console.error(
-      "[DB] Data attendance tidak lengkap."
+    throw new Error(
+      "Data tutor, siswa, atau program tidak lengkap."
     );
-
-    return db;
   }
 
-  const newId =
+  const duplicate =
+    next.attendanceReports.some(
+      report =>
+        report.tanggal ===
+          data.tanggal &&
+        report.tutorId ===
+          data.tutorId &&
+        report.siswaId ===
+          data.siswaId &&
+        report.programId ===
+          data.programId &&
+        (
+          report.status ===
+            "pending" ||
+          report.status ===
+            "diproses"
+        )
+    );
+
+  if (duplicate) {
+    throw new Error(
+      "Laporan kehadiran untuk sesi tersebut sudah ada."
+    );
+  }
+
+  /**
+   * Jika sesi sudah ada,
+   * jangan izinkan membuat attendance
+   * baru untuk kombinasi yang sama.
+   */
+  if (
+    checkDuplicateSession(
+      next,
+      {
+        tanggal:
+          data.tanggal,
+        siswaId:
+          data.siswaId,
+        tutorId:
+          data.tutorId,
+        programId:
+          data.programId
+      }
+    )
+  ) {
+    throw new Error(
+      "Sesi untuk tanggal tersebut sudah tercatat."
+    );
+  }
+
+  const id =
     generateUniqueId("LPK");
 
-  nextDb.attendanceReports = [
-    {
-      id: newId,
-      tanggal: data.tanggal,
-      tutorId: tutor.id,
-      tutorNama: tutor.nama,
-      siswaId: student.id,
-      siswaNama: student.nama,
-      programId: program.id,
-      programNama: program.nama,
-      fotoJurnal:
-        data.fotoJurnal,
-      keterangan:
-        data.keterangan,
-      status: "pending"
-    },
-    ...nextDb.attendanceReports
-  ];
+  next.attendanceReports.unshift({
+    id,
 
-  nextDb.lastUpdated =
+    tanggal:
+      data.tanggal,
+
+    tutorId:
+      tutor.id,
+
+    tutorNama:
+      tutor.nama,
+
+    siswaId:
+      student.id,
+
+    siswaNama:
+      student.nama,
+
+    programId:
+      program.id,
+
+    programNama:
+      program.nama,
+
+    fotoJurnal:
+      data.fotoJurnal,
+
+    keterangan:
+      data.keterangan,
+
+    status:
+      "pending"
+  });
+
+  next.lastUpdated =
     new Date().toISOString();
 
-  saveDatabase(nextDb);
-
-  return nextDb;
+  return saveAndReturn(
+    next
+  );
 }
+
+/* =========================================================
+   ATTENDANCE VERIFICATION
+========================================================= */
 
 export function verifyAttendanceReport(
   db: Database,
   reportId: string,
-  status: "setuju" | "tolak",
+  status:
+    | "setuju"
+    | "tolak",
   catatanAdmin?: string,
   tanggalProses: string =
     getTodayDateString()
 ): Database {
-  let nextDb =
-    ensureDatabaseDefaults(
-      JSON.parse(
-        JSON.stringify(db)
-      )
+  const next =
+    cloneDatabase(db);
+
+  const index =
+    next.attendanceReports.findIndex(
+      report =>
+        report.id ===
+        reportId
     );
 
-  const reportIdx =
-    nextDb.attendanceReports.findIndex(
-      r => r.id === reportId
-    );
-
-  if (reportIdx === -1) {
+  if (index === -1) {
     return db;
   }
 
   const report =
-    nextDb.attendanceReports[
-      reportIdx
+    next.attendanceReports[
+      index
     ];
 
+  /**
+   * Hanya pending yang boleh diproses.
+   */
   if (
     report.status !==
     "pending"
@@ -1447,67 +1719,195 @@ export function verifyAttendanceReport(
     return db;
   }
 
-  nextDb.attendanceReports[
-    reportIdx
+  /* -------------------------------------------------------
+     TOLAK
+  ------------------------------------------------------- */
+
+  if (
+    status === "tolak"
+  ) {
+    next.attendanceReports[
+      index
+    ] = {
+      ...report,
+
+      status:
+        "tolak",
+
+      tanggalProses,
+
+      catatanAdmin
+    };
+
+    return saveAndReturn(
+      next
+    );
+  }
+
+  /* -------------------------------------------------------
+     SETUJU
+  ------------------------------------------------------- */
+
+  /**
+   * Cari session yang sudah terhubung
+   * ke attendance ini.
+   */
+  let session =
+    next.sessions.find(
+      item =>
+        item.tanggal ===
+          report.tanggal &&
+        item.siswaId ===
+          report.siswaId &&
+        item.tutorId ===
+          report.tutorId &&
+        item.programId ===
+          report.programId &&
+        Boolean(
+          item.catatan?.includes(
+            `[${report.id}]`
+          )
+        )
+    );
+
+  /**
+   * Jika belum ada, buat SEKALI.
+   */
+  if (!session) {
+    /**
+     * Tetapi jika ada session bisnis
+     * yang sudah dibuat sebelumnya,
+     * jangan membuat saldo kedua.
+     */
+    const existingBusinessSession =
+      next.sessions.find(
+        item =>
+          item.tanggal ===
+            report.tanggal &&
+          item.siswaId ===
+            report.siswaId &&
+          item.tutorId ===
+            report.tutorId &&
+          item.programId ===
+            report.programId
+      );
+
+    if (existingBusinessSession) {
+      /**
+       * Kita gunakan session tersebut.
+       *
+       * Tidak membuat session baru.
+       */
+      session =
+        existingBusinessSession;
+    } else {
+      const result =
+        addSessionTransaction(
+          next,
+          {
+            tanggal:
+              report.tanggal,
+
+            siswaId:
+              report.siswaId,
+
+            tutorId:
+              report.tutorId,
+
+            programId:
+              report.programId,
+
+            catatan:
+              `Laporan Kehadiran Terverifikasi [${report.id}]${
+                report.keterangan
+                  ? ` - ${report.keterangan}`
+                  : ""
+              }`
+          }
+        );
+
+      /**
+       * Ambil database hasil transaksi.
+       */
+      next.sessions =
+        result.sessions;
+
+      next.students =
+        result.students;
+
+      session =
+        next.sessions.find(
+          item =>
+            item.catatan?.includes(
+              `[${report.id}]`
+            )
+        );
+    }
+  }
+
+  /**
+   * SAFETY CHECK.
+   *
+   * Kalau session tidak berhasil ditemukan,
+   * approval DIBATALKAN.
+   *
+   * Ini penting agar attendance tidak
+   * berubah setuju tanpa transaksi keuangan.
+   */
+  if (!session) {
+    throw new Error(
+      "Gagal membuat sesi dari laporan kehadiran. Persetujuan dibatalkan agar saldo tidak berubah."
+    );
+  }
+
+  next.attendanceReports[
+    index
   ] = {
     ...report,
-    status,
+
+    status:
+      "setuju",
+
     tanggalProses,
+
     catatanAdmin
   };
 
-  if (status === "setuju") {
-    nextDb =
-      addSessionTransaction(
-        nextDb,
-        {
-          tanggal:
-            report.tanggal,
-          siswaId:
-            report.siswaId,
-          tutorId:
-            report.tutorId,
-          programId:
-            report.programId,
-          catatan:
-            `Laporan Kehadiran Terverifikasi [${report.id}]${
-              report.keterangan
-                ? " - " +
-                  report.keterangan
-                : ""
-            }`
-        }
-      );
-  }
+  next.lastUpdated =
+    new Date().toISOString();
 
-  saveDatabase(nextDb);
-
-  return nextDb;
+  return saveAndReturn(
+    recalculateAllLedgers(
+      next
+    )
+  );
 }
+
+/* =========================================================
+   UNDO ATTENDANCE VERIFICATION
+========================================================= */
 
 export function undoVerifyAttendanceReport(
   db: Database,
   reportId: string
 ): Database {
-  let nextDb =
-    ensureDatabaseDefaults(
-      JSON.parse(
-        JSON.stringify(db)
-      )
+  let next =
+    cloneDatabase(db);
+
+  const index =
+    next.attendanceReports.findIndex(
+      report =>
+        report.id ===
+        reportId
     );
 
-  const reportIdx =
-    nextDb.attendanceReports.findIndex(
-      r => r.id === reportId
-    );
-
-  if (reportIdx === -1) {
+  if (index === -1) {
     return db;
   }
 
   const report =
-    nextDb.attendanceReports[
-      reportIdx
+    next.attendanceReports[
+      index
     ];
 
   if (
@@ -1520,48 +1920,60 @@ export function undoVerifyAttendanceReport(
   const oldStatus =
     report.status;
 
-  nextDb.attendanceReports[
-    reportIdx
+  next.attendanceReports[
+    index
   ] = {
     ...report,
-    status: "pending",
+
+    status:
+      "pending",
+
     tanggalProses:
       undefined,
+
     catatanAdmin:
       undefined
   };
 
+  /**
+   * Jika sebelumnya disetujui,
+   * hanya hapus session yang memang
+   * berasal dari report ini.
+   */
   if (
-    oldStatus === "setuju"
+    oldStatus ===
+    "setuju"
   ) {
     const session =
-      nextDb.sessions.find(
-        s =>
-          s.tanggal ===
+      next.sessions.find(
+        item =>
+          item.tanggal ===
             report.tanggal &&
-          s.siswaId ===
+          item.siswaId ===
             report.siswaId &&
-          s.tutorId ===
+          item.tutorId ===
             report.tutorId &&
-          s.programId ===
+          item.programId ===
             report.programId &&
-          s.catatan?.includes(
-            reportId
+          item.catatan?.includes(
+            `[${report.id}]`
           )
       );
 
     if (session) {
-      nextDb =
+      next =
         deleteSessionTransaction(
-          nextDb,
+          next,
           session.id
         );
     }
   }
 
-  saveDatabase(nextDb);
-
-  return nextDb;
+  return saveAndReturn(
+    recalculateAllLedgers(
+      next
+    )
+  );
 }
 
 /* =========================================================
@@ -1572,103 +1984,87 @@ export function deleteSessionTransaction(
   db: Database,
   sessionId: string
 ): Database {
-  const nextDb =
-    ensureDatabaseDefaults(
-      JSON.parse(
-        JSON.stringify(db)
-      )
-    );
+  const next =
+    cloneDatabase(db);
 
   const session =
-    nextDb.sessions.find(
-      s => s.id === sessionId
+    next.sessions.find(
+      item =>
+        item.id ===
+        sessionId
     );
 
   if (!session) {
     return db;
   }
 
-  nextDb.sessions =
-    nextDb.sessions.filter(
-      s => s.id !== sessionId
+  /**
+   * Hapus session.
+   */
+  next.sessions =
+    next.sessions.filter(
+      item =>
+        item.id !==
+        sessionId
     );
 
-  if (session.catatan) {
-    const match =
-      session.catatan.match(
-        /\[(LPK-[^\]]+)\]/
+  /**
+   * Jika berasal dari attendance,
+   * kembalikan ke pending.
+   */
+  const match =
+    session.catatan?.match(
+      /\[(LPK-[^\]]+)\]/
+    );
+
+  if (match?.[1]) {
+    const reportId =
+      match[1];
+
+    const index =
+      next.attendanceReports.findIndex(
+        report =>
+          report.id ===
+          reportId
       );
 
-    if (match?.[1]) {
-      const reportId =
-        match[1];
+    if (index !== -1) {
+      next.attendanceReports[
+        index
+      ] = {
+        ...next.attendanceReports[
+          index
+        ],
 
-      const idx =
-        nextDb.attendanceReports.findIndex(
-          r =>
-            r.id === reportId
-        );
+        status:
+          "pending",
 
-      if (idx !== -1) {
-        nextDb.attendanceReports[
-          idx
-        ] = {
-          ...nextDb
-            .attendanceReports[
-            idx
-          ],
-          status: "pending",
-          tanggalProses:
-            undefined,
-          catatanAdmin:
-            undefined
-        };
-      }
+        tanggalProses:
+          undefined,
+
+        catatanAdmin:
+          undefined
+      };
     }
   }
 
   /**
-   * Hapus transaksi yang berasal
-   * dari session.
+   * Tidak perlu menghapus ledger.
+   *
+   * Ledger akan hilang otomatis
+   * ketika rebuild.
    */
-  nextDb.studentLedger =
-    nextDb.studentLedger.filter(
-      tx =>
-        tx.referensiId !==
-          sessionId ||
-        tx.siswaId !==
-          session.siswaId
-    );
+  next.deletedIds =
+    uniqueStrings([
+      ...next.deletedIds,
+      sessionId
+    ]);
 
-  nextDb.tutorLedger =
-    nextDb.tutorLedger.filter(
-      tx =>
-        tx.referensiId !==
-          sessionId ||
-        tx.tutorId !==
-          session.tutorId
-    );
-
-  /**
-   * Catat session sebagai deleted.
-   */
-  nextDb.deletedIds =
-    Array.from(
-      new Set([
-        ...(nextDb.deletedIds ||
-          []),
-        sessionId
-      ])
-    );
-
-  const result =
+  return saveAndReturn(
     recalculateAllLedgers(
-      nextDb
-    );
-
-  saveDatabase(result);
-
-  return result;
+      next
+    )
+  );
 }
 
 /* =========================================================
@@ -1679,71 +2075,116 @@ export function deleteAttendanceReport(
   db: Database,
   reportId: string
 ): Database {
-  let nextDb =
-    ensureDatabaseDefaults(
-      JSON.parse(
-        JSON.stringify(db)
-      )
-    );
+  let next =
+    cloneDatabase(db);
 
   const report =
-    nextDb.attendanceReports.find(
-      r => r.id === reportId
+    next.attendanceReports.find(
+      item =>
+        item.id ===
+        reportId
     );
 
   if (!report) {
     return db;
   }
 
+  /**
+   * Jika sudah setuju,
+   * hanya hapus session yang memang
+   * berasal dari report ini.
+   */
   if (
     report.status ===
     "setuju"
   ) {
     const session =
-      nextDb.sessions.find(
-        s =>
-          s.tanggal ===
+      next.sessions.find(
+        item =>
+          item.tanggal ===
             report.tanggal &&
-          s.siswaId ===
+          item.siswaId ===
             report.siswaId &&
-          s.tutorId ===
+          item.tutorId ===
             report.tutorId &&
-          s.programId ===
+          item.programId ===
             report.programId &&
-          s.catatan?.includes(
-            reportId
+          item.catatan?.includes(
+            `[${reportId}]`
           )
       );
 
     if (session) {
-      nextDb =
+      next =
         deleteSessionTransaction(
-          nextDb,
+          next,
           session.id
         );
     }
   }
 
-  nextDb.attendanceReports =
-    nextDb.attendanceReports.filter(
-      r => r.id !== reportId
-    );
-
-  nextDb.deletedIds =
-    Array.from(
-      new Set([
-        ...(nextDb.deletedIds ||
-          []),
+  next.attendanceReports =
+    next.attendanceReports.filter(
+      item =>
+        item.id !==
         reportId
-      ])
     );
 
-  nextDb.lastUpdated =
-    new Date().toISOString();
+  next.deletedIds =
+    uniqueStrings([
+      ...next.deletedIds,
+      reportId
+    ]);
 
-  saveDatabase(nextDb);
+  return saveAndReturn(
+    recalculateAllLedgers(
+      next
+    )
+  );
+}
 
-  return nextDb;
+/* =========================================================
+   DELETE GENERIC
+========================================================= */
+
+export function deleteFromDatabase(
+  db: Database,
+  collection: keyof Database,
+  id: string
+): Database {
+  const next =
+    cloneDatabase(db);
+
+  const current =
+    (next as any)[
+      collection
+    ];
+
+  if (
+    !Array.isArray(current)
+  ) {
+    return next;
+  }
+
+  (next as any)[
+    collection
+  ] =
+    current.filter(
+      (item: any) =>
+        item?.id !== id
+    );
+
+  next.deletedIds =
+    uniqueStrings([
+      ...next.deletedIds,
+      id
+    ]);
+
+  return saveAndReturn(
+    recalculateAllLedgers(
+      next
+    )
+  );
 }
 
 /* =========================================================
@@ -1751,7 +2192,9 @@ export function deleteAttendanceReport(
 ========================================================= */
 
 function mergeArrayById<
-  T extends { id: string }
+  T extends {
+    id: string;
+  }
 >(
   local: T[] = [],
   remote: T[] = []
@@ -1759,17 +2202,38 @@ function mergeArrayById<
   const map =
     new Map<string, T>();
 
-  for (const item of local) {
-    if (item?.id) {
-      map.set(item.id, item);
+  /**
+   * Local terlebih dahulu.
+   */
+  for (
+    const item of local
+  ) {
+    if (
+      item?.id
+    ) {
+      map.set(
+        item.id,
+        item
+      );
     }
   }
 
-  for (const item of remote) {
-    if (!item?.id) continue;
+  /**
+   * Remote menimpa jika ID sama.
+   */
+  for (
+    const item of remote
+  ) {
+    if (
+      !item?.id
+    ) {
+      continue;
+    }
 
     const previous =
-      map.get(item.id);
+      map.get(
+        item.id
+      );
 
     map.set(
       item.id,
@@ -1787,102 +2251,128 @@ function mergeArrayById<
   );
 }
 
+/* =========================================================
+   MERGE SESSIONS
+========================================================= */
+
 function mergeSessions(
   local: RiwayatPertemuan[],
   remote: RiwayatPertemuan[]
 ): RiwayatPertemuan[] {
-  const result =
+  const merged =
     mergeArrayById(
       local,
       remote
     );
 
-  const seen =
+  const result:
+    RiwayatPertemuan[] =
+    [];
+
+  const seenBusiness =
     new Set<string>();
 
-  return result.filter(
-    item => {
-      const key =
-        `${item.tanggal}|${item.tutorId}|${item.siswaId}|${item.programId}`;
-
-      if (seen.has(key)) {
-        return false;
-      }
-
-      seen.add(key);
-
-      return true;
+  for (
+    const item of merged
+  ) {
+    if (
+      !item?.id
+    ) {
+      continue;
     }
-  );
+
+    const key =
+      [
+        item.tanggal,
+        item.tutorId,
+        item.siswaId,
+        item.programId
+      ].join("|");
+
+    /**
+     * Satu sesi bisnis hanya boleh satu.
+     */
+    if (
+      seenBusiness.has(key)
+    ) {
+      continue;
+    }
+
+    seenBusiness.add(
+      key
+    );
+
+    result.push(
+      item
+    );
+  }
+
+  return result;
 }
+
+/* =========================================================
+   MERGE ATTENDANCE
+========================================================= */
 
 function mergeAttendance(
   local: AttendanceRecord[],
   remote: AttendanceRecord[]
 ): AttendanceRecord[] {
-  const map =
-    new Map<
-      string,
-      AttendanceRecord
-    >();
-
-  for (const item of local) {
-    if (item?.id) {
-      map.set(
-        item.id,
-        item
-      );
-    }
-  }
-
-  for (const item of remote) {
-    if (!item?.id) continue;
-
-    map.set(
-      item.id,
-      {
-        ...(map.get(item.id) ||
-          {}),
-        ...item
-      }
-    );
-  }
-
-  const result =
-    Array.from(
-      map.values()
+  const merged =
+    mergeArrayById(
+      local,
+      remote
     );
 
-  const seen =
+  const result:
+    AttendanceRecord[] =
+    [];
+
+  const seenBusiness =
     new Set<string>();
 
-  return result.filter(
-    item => {
-      const key =
-        `${item.tanggal}|${item.tutorId}|${item.siswaId}|${item.programId}`;
-
-      if (
-        item.status ===
-          "pending" &&
-        seen.has(key)
-      ) {
-        return false;
-      }
-
-      if (
-        item.status ===
-        "pending"
-      ) {
-        seen.add(key);
-      }
-
-      return true;
+  for (
+    const item of merged
+  ) {
+    if (
+      !item?.id
+    ) {
+      continue;
     }
-  );
+
+    const key =
+      [
+        item.tanggal,
+        item.tutorId,
+        item.siswaId,
+        item.programId
+      ].join("|");
+
+    /**
+     * Untuk attendance, satu kombinasi
+     * tanggal+tutor+siswa+program hanya
+     * boleh satu laporan.
+     */
+    if (
+      seenBusiness.has(key)
+    ) {
+      continue;
+    }
+
+    seenBusiness.add(
+      key
+    );
+
+    result.push(
+      item
+    );
+  }
+
+  return result;
 }
 
 /* =========================================================
-   CRITICAL MERGE
+   MERGE DATABASE
 ========================================================= */
 
 export function mergeDatabases(
@@ -1890,6 +2380,7 @@ export function mergeDatabases(
     | Database
     | null
     | undefined,
+
   remoteInput:
     | Database
     | null
@@ -1906,42 +2397,37 @@ export function mergeDatabases(
     );
 
   /**
-   * =======================================================
-   * PENTING:
-   *
-   * deletedIds dari LOCAL + REMOTE digabung.
-   *
-   * Tidak boleh salah satu sisi menghilangkan tombstone.
-   * =======================================================
+   * Tombstone adalah gabungan permanen.
    */
   const deletedIds =
-    Array.from(
-      new Set([
-        ...(local.deletedIds ||
-          []),
-        ...(remote.deletedIds ||
-          [])
-      ])
-    );
+    uniqueStrings([
+      ...local.deletedIds,
+      ...remote.deletedIds
+    ]);
 
   const deleted =
-    new Set(deletedIds);
+    new Set(
+      deletedIds
+    );
 
   const filterDeleted = <
-    T extends { id: string }
+    T extends {
+      id: string;
+    }
   >(
     items: T[]
   ): T[] =>
     items.filter(
       item =>
-        item?.id &&
-        !deleted.has(item.id)
+        Boolean(
+          item?.id
+        ) &&
+        !deleted.has(
+          item.id
+        )
     );
 
   const merged: Database = {
-    ...local,
-    ...remote,
-
     programs:
       filterDeleted(
         mergeArrayById(
@@ -1974,27 +2460,11 @@ export function mergeDatabases(
         )
       ),
 
-    studentLedger:
-      filterDeleted(
-        mergeArrayById(
-          local.studentLedger,
-          remote.studentLedger
-        )
-      ),
-
     payments:
       filterDeleted(
         mergeArrayById(
           local.payments,
           remote.payments
-        )
-      ),
-
-    tutorLedger:
-      filterDeleted(
-        mergeArrayById(
-          local.tutorLedger,
-          remote.tutorLedger
         )
       ),
 
@@ -2006,19 +2476,19 @@ export function mergeDatabases(
         )
       ),
 
-    kas:
-      filterDeleted(
-        mergeArrayById(
-          local.kas,
-          remote.kas
-        )
-      ),
-
     otherIncomes:
       filterDeleted(
         mergeArrayById(
           local.otherIncomes,
           remote.otherIncomes
+        )
+      ),
+
+    expenses:
+      filterDeleted(
+        mergeArrayById(
+          local.expenses,
+          remote.expenses
         )
       ),
 
@@ -2041,10 +2511,21 @@ export function mergeDatabases(
     raports:
       filterDeleted(
         mergeArrayById(
-          local.raports || [],
-          remote.raports || []
+          local.raports,
+          remote.raports
         )
       ),
+
+    /**
+     * DERIVED DATA TIDAK DI-MERGE.
+     *
+     * Akan dibuat ulang.
+     */
+    studentLedger: [],
+
+    tutorLedger: [],
+
+    kas: [],
 
     broadcastMessage:
       remote.broadcastMessage ||
@@ -2056,15 +2537,16 @@ export function mergeDatabases(
       local.adminPassword ||
       "admin123",
 
-    /**
-     * Tombstone dipertahankan.
-     */
     deletedIds,
 
     lastUpdated:
       new Date().toISOString()
   };
 
+  /**
+   * Satu-satunya sumber saldo:
+   * rebuild dari sumber utama.
+   */
   return recalculateAllLedgers(
     merged
   );
@@ -2074,118 +2556,524 @@ export function mergeDatabases(
    LEDGER REBUILD
 ========================================================= */
 
+/**
+ * =========================================================
+ * SUMBER TUNGGAL KEUANGAN
+ * =========================================================
+ *
+ * TIDAK membaca studentLedger lama.
+ * TIDAK membaca tutorLedger lama.
+ * TIDAK membaca kas lama.
+ *
+ * Semua dibuat ulang dari:
+ *
+ * sessions
+ * payments
+ * slips
+ * otherIncomes
+ * expenses
+ *
+ * Dengan demikian:
+ *
+ * local saldo salah
+ * remote saldo salah
+ * saldoBerjalan salah
+ *
+ * semuanya tidak masalah.
+ *
+ * Yang dipercaya hanya data sumber.
+ */
 export function recalculateAllLedgers(
   input: Database
 ): Database {
   const db =
     ensureDatabaseDefaults(
       JSON.parse(
-        JSON.stringify(input)
+        JSON.stringify(
+          input
+        )
       )
     );
 
-  const rebuild = <
-    T extends {
-      tanggal: string;
-      id: string;
-    }
-  >(
-    items: T[],
-    apply: (
-      item: T,
-      running: number
-    ) => number
-  ): T[] => {
-    const indexed =
-      items.map(
-        (item, index) => ({
-          item,
-          index
-        })
-      );
+  /**
+   * =======================================================
+   * 1. KOSONGKAN LEDGER
+   * =======================================================
+   */
 
-    indexed.sort(
-      (a, b) =>
-        a.item.tanggal.localeCompare(
-          b.item.tanggal
-        ) ||
-        a.index - b.index
+  db.studentLedger = [];
+  db.tutorLedger = [];
+  db.kas = [];
+
+  /**
+   * =======================================================
+   * 2. SESSION
+   * =======================================================
+   *
+   * Satu session menghasilkan:
+   *
+   * siswa:
+   *   debit tarif siswa
+   *
+   * tutor:
+   *   kredit honor tutor
+   */
+
+  const sessions =
+    deduplicateSessions(
+      db.sessions
     );
 
-    let running = 0;
+  for (
+    const session of sessions
+  ) {
+    const tarifSiswa =
+      amount(
+        session.tarifSiswaSnapshot
+      );
 
-    for (
-      const entry of indexed
+    const honorTutor =
+      amount(
+        session.honorTutorSnapshot
+      );
+
+    if (
+      tarifSiswa > 0
     ) {
-      running =
-        apply(
-          entry.item,
-          running
-        );
+      db.studentLedger.push({
+        id:
+          `TXS-${session.id}`,
 
-      (
-        entry.item as any
-      ).saldoBerjalan =
-        running;
+        tanggal:
+          session.tanggal,
+
+        siswaId:
+          session.siswaId,
+
+        tipe:
+          "debit",
+
+        keterangan:
+          `Riwayat Pertemuan [${session.id}] - ${session.siswaNama} - ${session.programNama}`,
+
+        jumlah:
+          tarifSiswa,
+
+        saldoBerjalan:
+          0,
+
+        referensiId:
+          session.id
+      });
     }
 
-    return indexed
-      .sort(
-        (a, b) =>
-          a.index - b.index
-      )
-      .map(
-        x => x.item
+    if (
+      honorTutor > 0
+    ) {
+      db.tutorLedger.push({
+        id:
+          `TXT-${session.id}`,
+
+        tanggal:
+          session.tanggal,
+
+        tutorId:
+          session.tutorId,
+
+        tipe:
+          "kredit",
+
+        keterangan:
+          `Riwayat Pertemuan [${session.id}] - Siswa: ${session.siswaNama} - ${session.programNama}`,
+
+        jumlah:
+          honorTutor,
+
+        saldoBerjalan:
+          0,
+
+        referensiId:
+          session.id
+      });
+    }
+  }
+
+  /**
+   * =======================================================
+   * 3. PEMBAYARAN SISWA
+   * =======================================================
+   *
+   * ADMIN:
+   *
+   * langsung menjadi:
+   * - kredit siswa
+   * - kas masuk
+   *
+   * TUTOR:
+   *
+   * pending:
+   * - belum masuk ledger
+   * - belum masuk kas
+   *
+   * diserahkan:
+   * - kredit siswa
+   * - kas masuk
+   */
+
+  const payments =
+    deduplicatePayments(
+      db.payments
+    );
+
+  for (
+    const payment of payments
+  ) {
+    const jumlah =
+      amount(
+        payment.jumlah
       );
-  };
 
-  db.studentLedger =
-    rebuild(
-      db.studentLedger,
-      (tx, running) =>
-        running +
-        (tx.tipe ===
-        "debit"
-          ? Number(tx.jumlah) ||
-            0
-          : -(
-              Number(
-                tx.jumlah
-              ) || 0
-            ))
+    if (
+      jumlah <= 0
+    ) {
+      continue;
+    }
+
+    const isAdmin =
+      payment.metode ===
+      "admin";
+
+    const isTutorHanded =
+      payment.metode ===
+        "tutor" &&
+      payment.statusTitipan ===
+        "diserahkan";
+
+    if (
+      !isAdmin &&
+      !isTutorHanded
+    ) {
+      continue;
+    }
+
+    /**
+     * Kredit siswa.
+     */
+    db.studentLedger.push({
+      id:
+        `TXS-${payment.id}`,
+
+      tanggal:
+        payment.tanggalSerah ||
+        payment.tanggal,
+
+      siswaId:
+        payment.siswaId,
+
+      tipe:
+        "kredit",
+
+      keterangan:
+        isAdmin
+          ? `Pembayaran Siswa [${payment.id}] - Pembayaran langsung ke Admin`
+          : `Penerimaan Pembayaran via Tutor [${payment.id}] - ${payment.tutorNama || "-"}`,
+
+      jumlah,
+
+      saldoBerjalan:
+        0,
+
+      referensiId:
+        payment.id
+    });
+
+    /**
+     * Kas masuk.
+     */
+    db.kas.push({
+      id:
+        `KAS-${payment.id}`,
+
+      tanggal:
+        payment.tanggalSerah ||
+        payment.tanggal,
+
+      tipe:
+        "masuk",
+
+      keterangan:
+        isAdmin
+          ? `Pembayaran Siswa [${payment.id}] - ${payment.siswaNama}`
+          : `Penerimaan Titipan Tutor [${payment.id}] - ${payment.tutorNama || "-"} (Siswa: ${payment.siswaNama})`,
+
+      jumlah,
+
+      saldoBerjalan:
+        0,
+
+      referensiId:
+        payment.id
+    });
+  }
+
+  /**
+   * =======================================================
+   * 4. PEMBAYARAN HONOR TUTOR
+   * =======================================================
+   *
+   * Slip:
+   *
+   * totalHonor = gross
+   * potongan   = potongan
+   * jumlah     = net
+   *
+   * Tutor ledger:
+   * debit GROSS
+   *
+   * Kas:
+   * keluar NET
+   */
+
+  const slips =
+    deduplicateSlips(
+      db.slips
     );
 
-  db.tutorLedger =
-    rebuild(
-      db.tutorLedger,
-      (tx, running) =>
-        running +
-        (tx.tipe ===
-        "kredit"
-          ? Number(tx.jumlah) ||
-            0
-          : -(
-              Number(
-                tx.jumlah
-              ) || 0
-            ))
+  for (
+    const slip of slips
+  ) {
+    const gross =
+      amount(
+        slip.totalHonor ??
+        slip.jumlah
+      );
+
+    const potongan =
+      Math.min(
+        gross,
+        amount(
+          slip.potongan
+        )
+      );
+
+    const net =
+      Math.max(
+        0,
+        gross -
+          potongan
+      );
+
+    if (
+      gross <= 0
+    ) {
+      continue;
+    }
+
+    db.tutorLedger.push({
+      id:
+        `TXT-${slip.id}`,
+
+      tanggal:
+        slip.tanggal,
+
+      tutorId:
+        slip.tutorId,
+
+      tipe:
+        "debit",
+
+      keterangan:
+        potongan > 0
+          ? `Pembayaran Honor [${slip.id}] - Periode ${slip.periode} (Potongan: ${formatRupiah(
+              potongan
+            )})`
+          : `Pembayaran Honor [${slip.id}] - Periode ${slip.periode}`,
+
+      jumlah:
+        gross,
+
+      saldoBerjalan:
+        0,
+
+      referensiId:
+        slip.id
+    });
+
+    if (
+      net > 0
+    ) {
+      db.kas.push({
+        id:
+          `KAS-${slip.id}`,
+
+        tanggal:
+          slip.tanggal,
+
+        tipe:
+          "keluar",
+
+        keterangan:
+          potongan > 0
+            ? `Pembayaran Honor Tutor [${slip.id}] - ${slip.tutorNama} (Bersih: ${formatRupiah(
+                net
+              )}, Potongan: ${formatRupiah(
+                potongan
+              )})`
+            : `Pembayaran Honor Tutor [${slip.id}] - ${slip.tutorNama}`,
+
+        jumlah:
+          net,
+
+        saldoBerjalan:
+          0,
+
+        referensiId:
+          slip.id
+      });
+    }
+  }
+
+  /**
+   * =======================================================
+   * 5. PEMASUKAN LAIN
+   * =======================================================
+   */
+
+  const incomes =
+    deduplicateById(
+      db.otherIncomes
     );
 
-  db.kas =
-    rebuild(
-      db.kas,
-      (tx, running) =>
-        running +
-        (tx.tipe ===
-        "masuk"
-          ? Number(tx.jumlah) ||
-            0
-          : -(
-              Number(
-                tx.jumlah
-              ) || 0
-            ))
+  for (
+    const income of incomes
+  ) {
+    const nominal =
+      amount(
+        income.nominal ??
+        income.jumlah
+      );
+
+    if (
+      nominal <= 0
+    ) {
+      continue;
+    }
+
+    db.kas.push({
+      id:
+        `KAS-${income.id}`,
+
+      tanggal:
+        income.tanggal,
+
+      tipe:
+        "masuk",
+
+      keterangan:
+        `Pemasukan Lain [${income.id}] - ${
+          income.jenis ||
+          income.sumber ||
+          "Pemasukan Lain"
+        }${
+          income.keterangan
+            ? ` - ${income.keterangan}`
+            : ""
+        }`,
+
+      jumlah:
+        nominal,
+
+      saldoBerjalan:
+        0,
+
+      referensiId:
+        income.id
+    });
+  }
+
+  /**
+   * =======================================================
+   * 6. PENGELUARAN UMUM
+   * =======================================================
+   */
+
+  const expenses =
+    deduplicateById(
+      db.expenses
     );
+
+  for (
+    const expense of expenses
+  ) {
+    const jumlah =
+      amount(
+        expense.jumlah
+      );
+
+    if (
+      jumlah <= 0
+    ) {
+      continue;
+    }
+
+    db.kas.push({
+      id:
+        `KAS-${expense.id}`,
+
+      tanggal:
+        expense.tanggal,
+
+      tipe:
+        "keluar",
+
+      keterangan:
+        `Pengeluaran Operasional [${expense.id}] - ${expense.keterangan}`,
+
+      jumlah,
+
+      saldoBerjalan:
+        0,
+
+      referensiId:
+        expense.id
+    });
+  }
+
+  /**
+   * =======================================================
+   * 7. HITUNG RUNNING BALANCE SISWA
+   * =======================================================
+   */
+
+  calculateStudentRunningBalance(
+    db
+  );
+
+  /**
+   * =======================================================
+   * 8. HITUNG RUNNING BALANCE TUTOR
+   * =======================================================
+   */
+
+  calculateTutorRunningBalance(
+    db
+  );
+
+  /**
+   * =======================================================
+   * 9. HITUNG RUNNING BALANCE KAS
+   * =======================================================
+   */
+
+  calculateKasRunningBalance(
+    db
+  );
+
+  /**
+   * =======================================================
+   * 10. LAST UPDATED
+   * =======================================================
+   */
 
   db.lastUpdated =
     new Date().toISOString();
@@ -2194,68 +3082,279 @@ export function recalculateAllLedgers(
 }
 
 /* =========================================================
-   DELETE FROM DATABASE
+   RUNNING BALANCE - STUDENT
 ========================================================= */
 
-export function deleteFromDatabase(
-  db: Database,
-  collection: keyof Database,
-  id: string
-): Database {
-  const next =
-    ensureDatabaseDefaults(
-      JSON.parse(
-        JSON.stringify(db)
-      )
+function calculateStudentRunningBalance(
+  db: Database
+): void {
+  const running =
+    new Map<
+      string,
+      number
+    >();
+
+  const transactions =
+    [...db.studentLedger]
+      .sort(
+        compareTransaction
+      );
+
+  for (
+    const tx of transactions
+  ) {
+    const previous =
+      running.get(
+        tx.siswaId
+      ) || 0;
+
+    const next =
+      previous +
+      (
+        tx.tipe ===
+        "debit"
+          ? amount(
+              tx.jumlah
+            )
+          : -amount(
+              tx.jumlah
+            )
+      );
+
+    tx.saldoBerjalan =
+      next;
+
+    running.set(
+      tx.siswaId,
+      next
     );
-
-  const current =
-    (next as any)[
-      collection
-    ];
-
-  if (!Array.isArray(current)) {
-    return next;
   }
-
-  /**
-   * Hapus dari database lokal.
-   */
-  (next as any)[
-    collection
-  ] = current.filter(
-    (item: any) =>
-      item?.id !== id
-  );
-
-  /**
-   * =======================================================
-   * CRITICAL:
-   * Tandai ID sebagai deleted.
-   *
-   * Ini yang mencegah device lain
-   * menghidupkan kembali data.
-   * =======================================================
-   */
-  next.deletedIds =
-    Array.from(
-      new Set([
-        ...(next.deletedIds ||
-          []),
-        id
-      ])
-    );
-
-  next.lastUpdated =
-    new Date().toISOString();
-
-  saveDatabase(next);
-
-  return next;
 }
 
 /* =========================================================
-   SUPABASE DELETE HELPER
+   RUNNING BALANCE - TUTOR
+========================================================= */
+
+function calculateTutorRunningBalance(
+  db: Database
+): void {
+  const running =
+    new Map<
+      string,
+      number
+    >();
+
+  const transactions =
+    [...db.tutorLedger]
+      .sort(
+        compareTransaction
+      );
+
+  for (
+    const tx of transactions
+  ) {
+    const previous =
+      running.get(
+        tx.tutorId
+      ) || 0;
+
+    const next =
+      previous +
+      (
+        tx.tipe ===
+        "kredit"
+          ? amount(
+              tx.jumlah
+            )
+          : -amount(
+              tx.jumlah
+            )
+      );
+
+    tx.saldoBerjalan =
+      next;
+
+    running.set(
+      tx.tutorId,
+      next
+    );
+  }
+}
+
+/* =========================================================
+   RUNNING BALANCE - KAS
+========================================================= */
+
+function calculateKasRunningBalance(
+  db: Database
+): void {
+  let running =
+    0;
+
+  const transactions =
+    [...db.kas]
+      .sort(
+        compareTransaction
+      );
+
+  for (
+    const tx of transactions
+  ) {
+    running +=
+      tx.tipe ===
+      "masuk"
+        ? amount(
+            tx.jumlah
+          )
+        : -amount(
+            tx.jumlah
+          );
+
+    tx.saldoBerjalan =
+      running;
+  }
+}
+
+/* =========================================================
+   TRANSACTION SORT
+========================================================= */
+
+function compareTransaction<
+  T extends {
+    tanggal: string;
+    id: string;
+  }
+>(
+  a: T,
+  b: T
+): number {
+  const dateCompare =
+    String(
+      a.tanggal || ""
+    ).localeCompare(
+      String(
+        b.tanggal || ""
+      )
+    );
+
+  if (
+    dateCompare !== 0
+  ) {
+    return dateCompare;
+  }
+
+  return String(
+    a.id || ""
+  ).localeCompare(
+    String(
+      b.id || ""
+    )
+  );
+}
+
+/* =========================================================
+   DEDUPLICATE
+========================================================= */
+
+function deduplicateById<
+  T extends {
+    id: string;
+  }
+>(
+  items: T[]
+): T[] {
+  const map =
+    new Map<
+      string,
+      T
+    >();
+
+  for (
+    const item of items
+  ) {
+    if (
+      item?.id
+    ) {
+      map.set(
+        item.id,
+        item
+      );
+    }
+  }
+
+  return Array.from(
+    map.values()
+  );
+}
+
+function deduplicateSessions(
+  sessions: RiwayatPertemuan[]
+): RiwayatPertemuan[] {
+  const map =
+    new Map<
+      string,
+      RiwayatPertemuan
+    >();
+
+  for (
+    const session of sessions
+  ) {
+    if (
+      !session?.id
+    ) {
+      continue;
+    }
+
+    const businessKey =
+      [
+        session.tanggal,
+        session.tutorId,
+        session.siswaId,
+        session.programId
+      ].join("|");
+
+    /**
+     * Business key lebih penting
+     * daripada ID.
+     *
+     * Mencegah dua ID berbeda
+     * untuk sesi yang sama.
+     */
+    if (
+      !map.has(
+        businessKey
+      )
+    ) {
+      map.set(
+        businessKey,
+        session
+      );
+    }
+  }
+
+  return Array.from(
+    map.values()
+  );
+}
+
+function deduplicatePayments(
+  payments: PembayaranSiswa[]
+): PembayaranSiswa[] {
+  return deduplicateById(
+    payments
+  );
+}
+
+function deduplicateSlips(
+  slips: SlipGaji[]
+): SlipGaji[] {
+  return deduplicateById(
+    slips
+  );
+}
+
+/* =========================================================
+   SUPABASE DELETE
 ========================================================= */
 
 export async function deleteRecordFromSupabase(
@@ -2273,23 +3372,43 @@ export async function deleteRecordFromSupabase(
       string,
       string
     > = {
-      siswa: "siswa",
-      tutor: "tutor",
-      program: "program",
-      jadwal: "jadwal",
+      siswa:
+        "siswa",
+
+      tutor:
+        "tutor",
+
+      program:
+        "program",
+
+      jadwal:
+        "jadwal",
+
       laporan_kehadiran:
         "laporan_kehadiran"
     };
 
     const target =
-      allowed[table] ||
-      table;
+      allowed[table];
 
-    const { error } =
+    if (!target) {
+      console.warn(
+        `[Supabase] Tabel tidak diizinkan: ${table}`
+      );
+
+      return false;
+    }
+
+    const {
+      error
+    } =
       await supabase
         .from(target)
         .delete()
-        .eq("id", id);
+        .eq(
+          "id",
+          id
+        );
 
     if (error) {
       console.warn(
@@ -2323,7 +3442,9 @@ export function getNamaHariIndo(
   }
 
   const date =
-    new Date(dateStr);
+    new Date(
+      `${dateStr}T00:00:00`
+    );
 
   const days = [
     "Minggu",
@@ -2356,32 +3477,36 @@ export function addScheduleTransaction(
       | "Jumat"
       | "Sabtu"
       | "Minggu";
+
     waktu: string;
+
     tutorId: string;
     siswaId: string;
     programId: string;
   }
 ): Database {
-  const nextDb =
-    ensureDatabaseDefaults(
-      JSON.parse(
-        JSON.stringify(db)
-      )
-    );
+  const next =
+    cloneDatabase(db);
 
   const tutor =
-    nextDb.tutors.find(
-      t => t.id === data.tutorId
+    next.tutors.find(
+      t =>
+        t.id ===
+        data.tutorId
     );
 
   const student =
-    nextDb.students.find(
-      s => s.id === data.siswaId
+    next.students.find(
+      s =>
+        s.id ===
+        data.siswaId
     );
 
   const program =
-    nextDb.programs.find(
-      p => p.id === data.programId
+    next.programs.find(
+      p =>
+        p.id ===
+        data.programId
     );
 
   if (
@@ -2394,67 +3519,106 @@ export function addScheduleTransaction(
     );
   }
 
-  const newId =
-    generateUniqueId("JDW");
+  /**
+   * Jangan membuat jadwal
+   * dengan kombinasi identik.
+   */
+  const duplicate =
+    next.schedules.some(
+      schedule =>
+        schedule.hari ===
+          data.hari &&
+        schedule.waktu ===
+          data.waktu &&
+        schedule.tutorId ===
+          data.tutorId &&
+        schedule.siswaId ===
+          data.siswaId &&
+        schedule.programId ===
+          data.programId
+    );
 
-  const newSchedule:
+  if (duplicate) {
+    throw new Error(
+      "Jadwal yang sama sudah ada."
+    );
+  }
+
+  const schedule:
     ScheduleRecord = {
-      id: newId,
-      hari: data.hari,
-      waktu: data.waktu,
-      tutorId: tutor.id,
-      tutorNama: tutor.nama,
-      siswaId: student.id,
-      siswaNama: student.nama,
-      programId: program.id,
-      programNama: program.nama
-    };
+    id:
+      generateUniqueId(
+        "JDW"
+      ),
 
-  nextDb.schedules = [
-    ...nextDb.schedules,
-    newSchedule
-  ];
+    hari:
+      data.hari,
 
-  nextDb.lastUpdated =
-    new Date().toISOString();
+    waktu:
+      data.waktu,
 
-  saveDatabase(nextDb);
+    tutorId:
+      tutor.id,
 
-  return nextDb;
+    tutorNama:
+      tutor.nama,
+
+    siswaId:
+      student.id,
+
+    siswaNama:
+      student.nama,
+
+    programId:
+      program.id,
+
+    programNama:
+      program.nama
+  };
+
+  next.schedules.push(
+    schedule
+  );
+
+  return saveAndReturn(
+    next
+  );
 }
 
 export function deleteScheduleTransaction(
   db: Database,
   scheduleId: string
 ): Database {
-  const nextDb =
-    ensureDatabaseDefaults(
-      JSON.parse(
-        JSON.stringify(db)
-      )
-    );
+  const next =
+    cloneDatabase(db);
 
-  nextDb.schedules =
-    nextDb.schedules.filter(
-      s =>
-        s.id !== scheduleId
-    );
-
-  nextDb.deletedIds =
-    Array.from(
-      new Set([
-        ...(nextDb.deletedIds ||
-          []),
+  const exists =
+    next.schedules.some(
+      schedule =>
+        schedule.id ===
         scheduleId
-      ])
     );
 
-  nextDb.lastUpdated =
-    new Date().toISOString();
+  if (!exists) {
+    return db;
+  }
 
-  saveDatabase(nextDb);
+  next.schedules =
+    next.schedules.filter(
+      schedule =>
+        schedule.id !==
+        scheduleId
+    );
 
-  return nextDb;
+  next.deletedIds =
+    uniqueStrings([
+      ...next.deletedIds,
+      scheduleId
+    ]);
+
+  return saveAndReturn(
+    next
+  );
 }
 
 /* =========================================================
@@ -2465,22 +3629,15 @@ export function updateBroadcastMessageTransaction(
   db: Database,
   message: string
 ): Database {
-  const nextDb =
-    ensureDatabaseDefaults(
-      JSON.parse(
-        JSON.stringify(db)
-      )
-    );
+  const next =
+    cloneDatabase(db);
 
-  nextDb.broadcastMessage =
+  next.broadcastMessage =
     message;
 
-  nextDb.lastUpdated =
-    new Date().toISOString();
-
-  saveDatabase(nextDb);
-
-  return nextDb;
+  return saveAndReturn(
+    next
+  );
 }
 
 /* =========================================================
@@ -2491,6 +3648,7 @@ export default {
   getDatabase,
   saveDatabase,
   updateDatabase,
+
   getLocalDatabase,
   saveLocalDatabase,
 
@@ -2502,6 +3660,11 @@ export default {
   recalculateAllLedgers,
 
   generateUniqueId,
+
+  formatRupiah,
+  formatTanggalIndo,
+  formatBulanTahun,
+  getTodayDateString,
 
   getStudentBalance,
   getTutorHonorBalance,
@@ -2520,6 +3683,7 @@ export default {
   deleteSessionTransaction,
 
   addPaymentTransaction,
+
   confirmTutorDepositHandover,
   undoTutorDepositHandover,
 
